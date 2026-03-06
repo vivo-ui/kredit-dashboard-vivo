@@ -22,6 +22,7 @@ export default function Dashboard(){
 
 const [data,setData]=useState<any[]>([]);
 const [targets,setTargets]=useState<any[]>([]);
+const [promotors,setPromotors]=useState<any[]>([]);
 
 const [areaFilter,setAreaFilter]=useState("");
 const [satorFilter,setSatorFilter]=useState("");
@@ -29,6 +30,7 @@ const [satorFilter,setSatorFilter]=useState("");
 useEffect(()=>{
 loadData();
 loadTargets();
+loadPromotors();
 },[]);
 
 async function loadData(){
@@ -51,6 +53,19 @@ if(data) setTargets(data);
 
 }
 
+async function loadPromotors(){
+
+const { data } = await supabase
+.from("promotors")
+.select("*");
+
+if(data) setPromotors(data);
+
+}
+
+const areaList=[...new Set(promotors.map(p=>p.area))];
+const satorList=[...new Set(promotors.map(p=>p.sator))];
+
 const filtered=data.filter(d=>{
 
 if(areaFilter && d.area!==areaFilter) return false;
@@ -67,9 +82,6 @@ const tacc=filtered.filter(d=>d.status==="TACC").length;
 const acc=filtered.filter(d=>d.status==="ACC").length;
 const closing=filtered.filter(d=>d.status==="Closing").length;
 const reject=filtered.filter(d=>d.status==="Reject").length;
-
-const approvalRate = total ? ((acc+closing)/total*100).toFixed(1) : 0;
-const conversionRate = total ? (closing/total*100).toFixed(1) : 0;
 
 const areaStats:any={};
 
@@ -150,17 +162,35 @@ Dashboard Kredit Vivo NTT
 
 <div className="flex gap-4">
 
-<input
-placeholder="Filter Area"
+<select
 className="border p-2"
+value={areaFilter}
 onChange={(e)=>setAreaFilter(e.target.value)}
-/>
+>
+<option value="">Filter Area</option>
 
-<input
-placeholder="Filter Sator"
+{areaList.map((a,i)=>(
+<option key={i} value={a}>
+{a}
+</option>
+))}
+
+</select>
+
+<select
 className="border p-2"
+value={satorFilter}
 onChange={(e)=>setSatorFilter(e.target.value)}
-/>
+>
+<option value="">Filter Sator</option>
+
+{satorList.map((s,i)=>(
+<option key={i} value={s}>
+{s}
+</option>
+))}
+
+</select>
 
 <button
 onClick={exportExcel}
