@@ -154,13 +154,13 @@ saveAs(blob,"report_kredit.xlsx");
 
 return(
 
-<div className="p-10 space-y-10">
+<div className="p-4 md:p-10 space-y-10">
 
-<h1 className="text-3xl font-bold">
+<h1 className="text-2xl md:text-3xl font-bold">
 Dashboard Kredit Vivo NTT
 </h1>
 
-<div className="flex gap-4">
+<div className="flex flex-col md:flex-row gap-3">
 
 <select
 className="border p-2"
@@ -170,9 +170,7 @@ onChange={(e)=>setAreaFilter(e.target.value)}
 <option value="">Filter Area</option>
 
 {areaList.map((a,i)=>(
-<option key={i} value={a}>
-{a}
-</option>
+<option key={i} value={a}>{a}</option>
 ))}
 
 </select>
@@ -185,23 +183,21 @@ onChange={(e)=>setSatorFilter(e.target.value)}
 <option value="">Filter Sator</option>
 
 {satorList.map((s,i)=>(
-<option key={i} value={s}>
-{s}
-</option>
+<option key={i} value={s}>{s}</option>
 ))}
 
 </select>
 
 <button
 onClick={exportExcel}
-className="bg-green-600 text-white px-4 py-2"
+className="bg-green-600 text-white px-4 py-2 rounded"
 >
 Export Excel
 </button>
 
 </div>
 
-<div className="grid grid-cols-3 gap-5">
+<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
 
 <div className="bg-blue-500 text-white p-5 rounded">
 Total Pengajuan
@@ -235,7 +231,7 @@ Reject
 
 </div>
 
-<div className="grid grid-cols-2 gap-10">
+<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
 <div>
 
@@ -243,7 +239,7 @@ Reject
 Closing per Area
 </h2>
 
-<ResponsiveContainer width="100%" height={250}>
+<ResponsiveContainer width="100%" height={220}>
 
 <BarChart data={areaChart}>
 
@@ -265,7 +261,7 @@ Closing per Area
 Closing per Toko
 </h2>
 
-<ResponsiveContainer width="100%" height={250}>
+<ResponsiveContainer width="100%" height={220}>
 
 <BarChart data={tokoChart}>
 
@@ -289,7 +285,7 @@ Closing per Toko
 Closing per Hari
 </h2>
 
-<ResponsiveContainer width="100%" height={250}>
+<ResponsiveContainer width="100%" height={220}>
 
 <BarChart data={dailyChart}>
 
@@ -305,7 +301,7 @@ Closing per Hari
 
 </div>
 
-<div>
+<div className="overflow-x-auto">
 
 <h2 className="text-xl font-bold mb-2">
 Heatmap Closing Activity
@@ -326,7 +322,9 @@ count:d.status==="Closing"?1:0
 Ranking Promotor
 </h2>
 
-<table className="w-full border">
+<div className="overflow-x-auto">
+
+<table className="w-full border min-w-[600px]">
 
 <thead>
 
@@ -369,11 +367,15 @@ return(
 
 </table>
 
+</div>
+
 <h2 className="text-2xl font-bold">
 Monitoring Pengajuan
 </h2>
 
-<table className="w-full border text-sm">
+<div className="overflow-x-auto">
+
+<table className="w-full border text-sm min-w-[700px]">
 
 <thead>
 
@@ -408,6 +410,8 @@ Monitoring Pengajuan
 </tbody>
 
 </table>
+
+</div>
 
 </div>
 
