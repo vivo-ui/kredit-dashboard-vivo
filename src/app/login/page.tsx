@@ -1,58 +1,73 @@
 "use client";
 
 import { useState } from "react";
-import { supabase } from "../../lib/supabaseClient";
+import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
 
-export default function Login(){
+export default function Login() {
 
 const router = useRouter();
 
-const [email,setEmail]=useState("");
-const [password,setPassword]=useState("");
+const [email,setEmail] = useState("");
+const [password,setPassword] = useState("");
+const [loading,setLoading] = useState(false);
 
-async function login(){
+async function handleLogin(){
 
-const { error } = await supabase.auth.signInWithPassword({
+setLoading(true);
+
+const { data, error } = await supabase.auth.signInWithPassword({
 email,
-password
+password,
 });
 
 if(error){
 alert("Login gagal");
-}else{
+setLoading(false);
+return;
+}
+
+if(email === "manager@vivo.com"){
 router.push("/dashboard");
+}else{
+router.push("/input");
 }
 
 }
 
 return(
 
-<div className="p-10 max-w-md mx-auto">
+<div className="flex items-center justify-center h-screen bg-gray-100">
 
-<h1 className="text-2xl font-bold mb-5">
-Login Sistem Kredit
+<div className="bg-white p-10 rounded-xl shadow-xl w-80">
+
+<h1 className="text-xl font-bold mb-6 text-center">
+Login Kredit Vivo
 </h1>
 
 <input
-className="border p-2 mb-3 w-full"
+className="border w-full p-2 mb-3"
 placeholder="Email"
 onChange={(e)=>setEmail(e.target.value)}
 />
 
 <input
 type="password"
-className="border p-2 mb-3 w-full"
+className="border w-full p-2 mb-5"
 placeholder="Password"
 onChange={(e)=>setPassword(e.target.value)}
 />
 
 <button
-onClick={login}
-className="bg-blue-600 text-white px-4 py-2"
+onClick={handleLogin}
+className="bg-blue-600 text-white w-full p-2 rounded"
 >
-Login
+
+{loading ? "Loading..." : "Login"}
+
 </button>
+
+</div>
 
 </div>
 
