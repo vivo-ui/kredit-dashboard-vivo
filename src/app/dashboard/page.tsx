@@ -33,38 +33,51 @@ loadTargets();
 loadPromotors();
 },[]);
 
+
 async function loadData(){
 
-const { data } = await supabase
+const { data, error } = await supabase
 .from("kredit_vast")
 .select("*");
+
+console.log("DATA KREDIT_VAST :",data);
+console.log("ERROR :",error);
 
 if(data) setData(data);
 
 }
 
+
 async function loadTargets(){
 
-const { data } = await supabase
+const { data, error } = await supabase
 .from("targets")
 .select("*");
+
+console.log("TARGETS :",data);
 
 if(data) setTargets(data);
 
 }
 
+
 async function loadPromotors(){
 
-const { data } = await supabase
+const { data, error } = await supabase
 .from("promotors")
 .select("*");
+
+console.log("PROMOTORS :",data);
 
 if(data) setPromotors(data);
 
 }
 
+
+
 const areaList=[...new Set(promotors.map(p=>p.area))];
 const satorList=[...new Set(promotors.map(p=>p.sator))];
+
 
 const filtered=data.filter(d=>{
 
@@ -75,6 +88,7 @@ return true;
 
 });
 
+
 const total=filtered.length;
 
 const pending=filtered.filter(d=>d.status==="Pending").length;
@@ -83,6 +97,8 @@ const acc=filtered.filter(d=>d.status==="ACC").length;
 const closing=filtered.filter(d=>d.status==="Closing").length;
 const reject=filtered.filter(d=>d.status==="Reject").length;
 
+
+
 const areaStats:any={};
 
 filtered.forEach(d=>{
@@ -90,10 +106,13 @@ if(!areaStats[d.area]) areaStats[d.area]=0;
 if(d.status==="Closing") areaStats[d.area]++;
 });
 
+
 const areaChart=Object.keys(areaStats).map(a=>({
 area:a,
 closing:areaStats[a]
 }));
+
+
 
 const tokoStats:any={};
 
@@ -102,10 +121,13 @@ if(!tokoStats[d.toko]) tokoStats[d.toko]=0;
 if(d.status==="Closing") tokoStats[d.toko]++;
 });
 
+
 const tokoChart=Object.keys(tokoStats).map(t=>({
 toko:t,
 closing:tokoStats[t]
 }));
+
+
 
 const dailyStats:any={};
 
@@ -114,10 +136,13 @@ if(!dailyStats[d.tanggal]) dailyStats[d.tanggal]=0;
 if(d.status==="Closing") dailyStats[d.tanggal]++;
 });
 
+
 const dailyChart=Object.keys(dailyStats).map(t=>({
 tanggal:t,
 closing:dailyStats[t]
 }));
+
+
 
 const promotorStats:any={};
 
@@ -126,15 +151,20 @@ if(!promotorStats[d.promotor]) promotorStats[d.promotor]=0;
 if(d.status==="Closing") promotorStats[d.promotor]++;
 });
 
+
 const ranking=Object.keys(promotorStats)
 .map(p=>({promotor:p,closing:promotorStats[p]}))
 .sort((a,b)=>b.closing-a.closing);
+
+
 
 const targetMap:any={};
 
 targets.forEach(t=>{
 targetMap[t.promotor]=t.target;
 });
+
+
 
 function exportExcel(){
 
@@ -152,6 +182,8 @@ saveAs(blob,"report_kredit.xlsx");
 
 }
 
+
+
 return(
 
 <div className="p-4 md:p-10 space-y-10">
@@ -159,6 +191,8 @@ return(
 <h1 className="text-2xl md:text-3xl font-bold">
 Dashboard Kredit Vivo NTT
 </h1>
+
+
 
 <div className="flex flex-col md:flex-row gap-3">
 
@@ -175,6 +209,8 @@ onChange={(e)=>setAreaFilter(e.target.value)}
 
 </select>
 
+
+
 <select
 className="border p-2"
 value={satorFilter}
@@ -188,6 +224,8 @@ onChange={(e)=>setSatorFilter(e.target.value)}
 
 </select>
 
+
+
 <button
 onClick={exportExcel}
 className="bg-green-600 text-white px-4 py-2 rounded"
@@ -196,6 +234,8 @@ Export Excel
 </button>
 
 </div>
+
+
 
 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
 
@@ -231,6 +271,8 @@ Reject
 
 </div>
 
+
+
 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
 <div>
@@ -254,6 +296,8 @@ Closing per Area
 </ResponsiveContainer>
 
 </div>
+
+
 
 <div>
 
@@ -279,6 +323,8 @@ Closing per Toko
 
 </div>
 
+
+
 <div>
 
 <h2 className="text-xl font-bold mb-2">
@@ -301,6 +347,8 @@ Closing per Hari
 
 </div>
 
+
+
 <div className="overflow-x-auto">
 
 <h2 className="text-xl font-bold mb-2">
@@ -318,9 +366,13 @@ count:d.status==="Closing"?1:0
 
 </div>
 
+
+
 <h2 className="text-2xl font-bold">
 Ranking Promotor
 </h2>
+
+
 
 <div className="overflow-x-auto">
 
@@ -369,9 +421,13 @@ return(
 
 </div>
 
+
+
 <h2 className="text-2xl font-bold">
 Monitoring Pengajuan
 </h2>
+
+
 
 <div className="overflow-x-auto">
 
@@ -412,6 +468,8 @@ Monitoring Pengajuan
 </table>
 
 </div>
+
+
 
 </div>
 
