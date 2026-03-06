@@ -11,14 +11,12 @@ const [sators,setSators]=useState<any[]>([]);
 const [tokos,setTokos]=useState<any[]>([]);
 const [promotors,setPromotors]=useState<any[]>([]);
 
+const [area,setArea]=useState("");
 const [sator,setSator]=useState("");
 const [toko,setToko]=useState("");
 const [promotor,setPromotor]=useState("");
 
 const [konsumen,setKonsumen]=useState("");
-const [pekerjaan,setPekerjaan]=useState("");
-const [nohp,setNohp]=useState("");
-
 const [typeHp,setTypeHp]=useState("");
 const [hargaHp,setHargaHp]=useState("");
 const [leasing,setLeasing]=useState("");
@@ -28,6 +26,7 @@ const [status,setStatus]=useState("Pending");
 useEffect(()=>{
 loadSator();
 },[]);
+
 
 async function loadSator(){
 
@@ -39,9 +38,16 @@ if(data) setSators(data);
 
 }
 
+
 async function loadToko(selectedSator:string){
 
 setSator(selectedSator);
+
+const satorData = sators.find(s=>s.nama_sator===selectedSator);
+
+if(satorData){
+setArea(satorData.area);
+}
 
 const { data } = await supabase
 .from("tokos")
@@ -51,6 +57,7 @@ const { data } = await supabase
 if(data) setTokos(data);
 
 }
+
 
 async function loadPromotor(selectedToko:string){
 
@@ -65,6 +72,8 @@ if(data) setPromotors(data);
 
 }
 
+
+
 const submitData = async () => {
 
 const { error } = await supabase
@@ -72,12 +81,11 @@ const { error } = await supabase
 .insert([{
 
 tanggal,
+area,
 sator,
 toko,
 promotor,
 konsumen,
-pekerjaan_konsumen:pekerjaan,
-no_hp_konsumen:nohp,
 type_hp:typeHp,
 harga_hp:hargaHp,
 leasing,
@@ -86,13 +94,17 @@ status
 
 }]);
 
+
 if(error){
+console.log(error);
 alert("Error menyimpan data");
 }else{
 alert("Data berhasil disimpan");
 }
 
 };
+
+
 
 return (
 
@@ -108,6 +120,7 @@ className="border p-2 mb-2 w-full"
 onChange={(e)=>setTanggal(e.target.value)}
 />
 
+
 <select
 className="border p-2 mb-2 w-full"
 onChange={(e)=>loadToko(e.target.value)}
@@ -120,6 +133,7 @@ onChange={(e)=>loadToko(e.target.value)}
 ))}
 
 </select>
+
 
 <select
 className="border p-2 mb-2 w-full"
@@ -134,6 +148,7 @@ onChange={(e)=>loadPromotor(e.target.value)}
 
 </select>
 
+
 <select
 className="border p-2 mb-2 w-full"
 onChange={(e)=>setPromotor(e.target.value)}
@@ -147,23 +162,13 @@ onChange={(e)=>setPromotor(e.target.value)}
 
 </select>
 
+
 <input
 className="border p-2 mb-2 w-full"
 placeholder="Nama Konsumen"
 onChange={(e)=>setKonsumen(e.target.value)}
 />
 
-<input
-className="border p-2 mb-2 w-full"
-placeholder="Pekerjaan Konsumen"
-onChange={(e)=>setPekerjaan(e.target.value)}
-/>
-
-<input
-className="border p-2 mb-2 w-full"
-placeholder="No HP Konsumen"
-onChange={(e)=>setNohp(e.target.value)}
-/>
 
 <input
 className="border p-2 mb-2 w-full"
@@ -171,11 +176,13 @@ placeholder="Type HP"
 onChange={(e)=>setTypeHp(e.target.value)}
 />
 
+
 <input
 className="border p-2 mb-2 w-full"
 placeholder="Harga HP"
 onChange={(e)=>setHargaHp(e.target.value)}
 />
+
 
 <input
 className="border p-2 mb-2 w-full"
@@ -183,11 +190,13 @@ placeholder="Leasing"
 onChange={(e)=>setLeasing(e.target.value)}
 />
 
+
 <input
 className="border p-2 mb-2 w-full"
 placeholder="Limit Kredit"
 onChange={(e)=>setLimitKredit(e.target.value)}
 />
+
 
 <select
 className="border p-2 mb-4 w-full"
@@ -202,12 +211,14 @@ onChange={(e)=>setStatus(e.target.value)}
 
 </select>
 
+
 <button
 onClick={submitData}
-className="bg-blue-500 text-white px-4 py-2"
+className="bg-blue-500 text-white px-4 py-2 w-full"
 >
 Submit
 </button>
+
 
 </div>
 
