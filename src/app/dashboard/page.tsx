@@ -262,10 +262,19 @@ return(
 
 <div className="p-4 md:p-10 space-y-10">
 
-<h1 className="text-2xl md:text-3xl font-bold">
+<div className="flex items-center justify-between border-b pb-4">
+
+<h1 className="text-xl md:text-3xl font-bold">
 Dashboard Kredit Vivo Flores
 </h1>
 
+<img
+src="/logo-vivo.png"
+alt="Vivo Logo"
+className="h-10 md:h-14 object-contain"
+/>
+
+</div>
 
 
 {/* FILTER */}
