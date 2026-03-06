@@ -36,8 +36,6 @@ loadData();
 loadTargets();
 loadPromotors();
 
-/* REALTIME UPDATE */
-
 const channel = supabase
 .channel("realtime-kredit")
 .on(
@@ -75,11 +73,8 @@ if(areaFilter && d.area!==areaFilter) return false;
 if(satorFilter && d.sator!==satorFilter) return false;
 
 if(monthFilter){
-
 const month=new Date(d.tanggal).getMonth()+1;
-
 if(month!==parseInt(monthFilter)) return false;
-
 }
 
 return true;
@@ -93,15 +88,56 @@ const acc=filtered.filter(d=>d.status==="ACC").length;
 const closing=filtered.filter(d=>d.status==="Closing").length;
 const reject=filtered.filter(d=>d.status==="Reject").length;
 
-/* TARGET BULAN */
+/* TARGET FOLLOW FILTER AREA / SATOR */
 
-const monthClosing=filtered.filter(d=>d.status==="Closing").length;
+/* ambil promotor sesuai filter */
 
-const totalTarget=targets.reduce((sum,t)=>sum+(t.target||0),0);
+const filteredPromotors = promotors.filter(p=>{
 
-const gapTarget=totalTarget-monthClosing;
+if(areaFilter && p.area!==areaFilter) return false;
 
-const achievement= totalTarget ? ((monthClosing/totalTarget)*100).toFixed(1) : 0;
+if(satorFilter && p.sator!==satorFilter) return false;
+
+return true;
+
+});
+
+/* ambil nama promotor */
+
+const promotorNames = filteredPromotors.map(p=>p.nama_promotor);
+
+/* hitung target hanya promotor yang terfilter */
+
+const filteredTargets = targets.filter(t=>
+promotorNames.includes(t.promotor)
+);
+
+/* total target */
+
+const totalTarget = filteredTargets.reduce(
+(sum,t)=>sum+(t.target||0),
+0
+);
+
+/* closing bulan ini */
+
+const monthClosing = filtered.filter(
+d=>d.status==="Closing"
+).length;
+
+/* gap */
+
+const gapTarget = totalTarget - monthClosing;
+
+/* achievement */
+
+const achievement = totalTarget
+? ((monthClosing/totalTarget)*100).toFixed(1)
+: 0;
+
+/* AI WARNING TARGET */
+
+const warningTarget = monthClosing < totalTarget * 0.7;
 
 /* AI PREDIKSI */
 
@@ -112,21 +148,14 @@ const daysInMonth=new Date(today.getFullYear(),today.getMonth()+1,0).getDate();
 const avgClosingPerDay=monthClosing/currentDay;
 const predictedClosing=Math.round(avgClosingPerDay*daysInMonth);
 
-/* ===============================
-   LEADERBOARD DEALER
-================================ */
+/* LEADERBOARD DEALER */
 
 const dealerStats:any={};
 
 filtered.forEach(d=>{
 
 if(!dealerStats[d.toko]){
-
-dealerStats[d.toko]={
-pengajuan:0,
-closing:0
-};
-
+dealerStats[d.toko]={pengajuan:0,closing:0};
 }
 
 dealerStats[d.toko].pengajuan++;
@@ -142,26 +171,22 @@ const dealerLeaderboard=Object.keys(dealerStats)
 
 toko:t,
 pengajuan:dealerStats[t].pengajuan,
-closing:dealerStats[t].closing
+closing:dealerStats[t].closing,
+index: dealerStats[t].pengajuan
+? Math.round((dealerStats[t].closing/dealerStats[t].pengajuan)*100)
+:0
 
 }))
 .sort((a,b)=>b.closing-a.closing);
 
-/* ===============================
-   LEADERBOARD SPV
-================================ */
+/* LEADERBOARD SPV */
 
 const spvStats:any={};
 
 filtered.forEach(d=>{
 
 if(!spvStats[d.sator]){
-
-spvStats[d.sator]={
-pengajuan:0,
-closing:0
-};
-
+spvStats[d.sator]={pengajuan:0,closing:0};
 }
 
 spvStats[d.sator].pengajuan++;
@@ -182,9 +207,7 @@ closing:spvStats[s].closing
 }))
 .sort((a,b)=>b.closing-a.closing);
 
-/* ===============================
-   LEADERBOARD PROMOTOR AREA
-================================ */
+/* PROMOTOR RANK */
 
 const promotorArea:any={};
 
@@ -193,13 +216,7 @@ filtered.forEach(d=>{
 const key=d.area+"-"+d.promotor;
 
 if(!promotorArea[key]){
-
-promotorArea[key]={
-area:d.area,
-promotor:d.promotor,
-closing:0
-};
-
+promotorArea[key]={area:d.area,promotor:d.promotor,closing:0};
 }
 
 if(d.status==="Closing"){
@@ -211,9 +228,33 @@ promotorArea[key].closing++;
 const promotorAreaRank=Object.values(promotorArea)
 .sort((a:any,b:any)=>b.closing-a.closing);
 
-/* ===============================
-   TREND CLOSING
-================================ */
+/* AREA PERFORMANCE */
+
+const areaStats:any={};
+
+filtered.forEach(d=>{
+
+if(!areaStats[d.area]){
+areaStats[d.area]={closing:0};
+}
+
+if(d.status==="Closing"){
+areaStats[d.area].closing++;
+}
+
+});
+
+const areaProgress=Object.keys(areaStats).map(a=>({
+
+area:a,
+closing:areaStats[a].closing,
+target: filteredTargets
+.filter(t=>t.area===a)
+.reduce((sum,t)=>sum+(t.target||0),0)
+
+}));
+
+/* TREND */
 
 function getWeek(date:any){
 
@@ -250,10 +291,7 @@ closing:weeklyStats[w]
 
 const heatmapData=filtered
 .filter(d=>d.status==="Closing")
-.map(d=>({
-date:d.tanggal,
-count:1
-}));
+.map(d=>({date:d.tanggal,count:1}));
 
 /* EXPORT */
 
@@ -378,6 +416,48 @@ Prediksi Closing
 
 </div>
 
+{/* WARNING */}
+
+{warningTarget && (
+<div className="bg-red-100 border border-red-400 p-4 rounded text-red-700">
+⚠ Target kemungkinan tidak tercapai bulan ini
+</div>
+)}
+
+{/* PROGRESS AREA */}
+
+<h2 className="text-xl font-bold">
+Target Progress per Area
+</h2>
+
+{areaProgress.map((a,i)=>{
+
+const percent=a.target?Math.round((a.closing/a.target)*100):0;
+
+return(
+
+<div key={i} className="mb-3">
+
+<div className="flex justify-between text-sm">
+<span>{a.area}</span>
+<span>{a.closing}/{a.target}</span>
+</div>
+
+<div className="w-full bg-gray-200 rounded h-3">
+
+<div
+className="bg-green-500 h-3 rounded"
+style={{width:percent+"%"}}
+/>
+
+</div>
+
+</div>
+
+)
+
+})}
+
 {/* HEATMAP */}
 
 <h2 className="text-xl font-bold">
@@ -406,85 +486,123 @@ Trend Closing per Minggu
 </LineChart>
 </ResponsiveContainer>
 
-{/* LEADERBOARD DEALER */}
+{/* DEALER */}
 
 <h2 className="text-xl font-bold">
 Leaderboard Dealer
 </h2>
 
 <table className="w-full border">
+
 <thead className="bg-gray-200">
+
 <tr>
 <th>Rank</th>
 <th>Dealer</th>
 <th>Pengajuan</th>
 <th>Closing</th>
+<th>Index</th>
 </tr>
+
 </thead>
+
 <tbody>
+
 {dealerLeaderboard.map((d,i)=>(
+
 <tr key={i} className="border">
+
 <td>{i+1}</td>
 <td>{d.toko}</td>
 <td>{d.pengajuan}</td>
 <td>{d.closing}</td>
+<td>{d.index}%</td>
+
 </tr>
+
 ))}
+
 </tbody>
+
 </table>
 
-{/* LEADERBOARD SPV */}
+{/* SPV */}
 
 <h2 className="text-xl font-bold">
 Leaderboard SPV
 </h2>
 
 <table className="w-full border">
+
 <thead className="bg-gray-200">
+
 <tr>
 <th>Rank</th>
 <th>SPV</th>
 <th>Pengajuan</th>
 <th>Closing</th>
 </tr>
+
 </thead>
+
 <tbody>
+
 {spvLeaderboard.map((s,i)=>(
+
 <tr key={i} className="border">
+
 <td>{i+1}</td>
 <td>{s.sator}</td>
 <td>{s.pengajuan}</td>
 <td>{s.closing}</td>
+
 </tr>
+
 ))}
+
 </tbody>
+
 </table>
 
-{/* LEADERBOARD PROMOTOR */}
+{/* PROMOTOR */}
 
 <h2 className="text-xl font-bold">
 Leaderboard Promotor per Area
 </h2>
 
 <table className="w-full border">
+
 <thead className="bg-gray-200">
+
 <tr>
 <th>Rank</th>
 <th>Area</th>
 <th>Promotor</th>
 <th>Closing</th>
 </tr>
+
 </thead>
+
 <tbody>
+
 {promotorAreaRank.slice(0,20).map((p:any,i)=>(
-<tr key={i} className="border">
+
+<tr
+key={i}
+className={`border ${i===0 ? "bg-yellow-200 font-bold" : ""}`}
+>
+
 <td>{i+1}</td>
 <td>{p.area}</td>
 <td>{p.promotor}</td>
 <td>{p.closing}</td>
+
 </tr>
+
 ))}
+
 </tbody>
+
 </table>
 
 </div>
