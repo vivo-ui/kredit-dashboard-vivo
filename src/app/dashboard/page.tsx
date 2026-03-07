@@ -1,44 +1,35 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect,useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
+
+import {
+PieChart,
+Pie,
+Cell,
+ResponsiveContainer
+} from "recharts";
 
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 
-import CalendarHeatmap from "react-calendar-heatmap";
-import "react-calendar-heatmap/dist/styles.css";
-
 export default function Dashboard(){
 
+const [tab,setTab]=useState("dashboard");
+
 const [data,setData]=useState<any[]>([]);
-const [targets,setTargets]=useState<any[]>([]);
 const [promotors,setPromotors]=useState<any[]>([]);
+const [tokos,setTokos]=useState<any[]>([]);
+const [targets,setTargets]=useState<any[]>([]);
 
-const [areaFilter,setAreaFilter]=useState("");
-const [satorFilter,setSatorFilter]=useState("");
 const [monthFilter,setMonthFilter]=useState("");
-
-/* ===============================
-LOAD DATA
-=============================== */
 
 useEffect(()=>{
 
 loadData();
-loadTargets();
 loadPromotors();
-
-const channel = supabase
-.channel("realtime-kredit")
-.on(
-"postgres_changes",
-{ event:"*", schema:"public", table:"kredit_vast" },
-()=> loadData()
-)
-.subscribe();
-
-return()=>{ supabase.removeChannel(channel); };
+loadTokos();
+loadTargets();
 
 },[]);
 
@@ -47,15 +38,7 @@ const { data } = await supabase
 .from("kredit_vast")
 .select("*");
 
-if(data) setData(data);
-}
-
-async function loadTargets(){
-const { data } = await supabase
-.from("targets")
-.select("*");
-
-if(data) setTargets(data);
+setData(data || []);
 }
 
 async function loadPromotors(){
@@ -63,326 +46,326 @@ const { data } = await supabase
 .from("promotors")
 .select("*");
 
-if(data) setPromotors(data);
+setPromotors(data || []);
 }
 
-/* ===============================
-AREA & SATOR LIST
-=============================== */
+async function loadTokos(){
+const { data } = await supabase
+.from("tokos")
+.select("*");
 
-const areaList=[...new Set(promotors.map(p=>p.area).filter(Boolean))];
-
-const satorList=[...new Set(promotors.map(p=>p.sator).filter(Boolean))];
-
-/* ===============================
-FILTER DATA
-=============================== */
-
-const filtered=data.filter(d=>{
-
-const promotorData = promotors.find(
-p=>p.nama_promotor===d.promotor
-);
-
-const area = promotorData?.area;
-const sator = promotorData?.sator;
-
-if(areaFilter && area!==areaFilter) return false;
-
-if(satorFilter && sator!==satorFilter) return false;
-
-if(monthFilter){
-const month=new Date(d.tanggal).getMonth()+1;
-if(month!==parseInt(monthFilter)) return false;
+setTokos(data || []);
 }
 
-return true;
+async function loadTargets(){
+const { data } = await supabase
+.from("targets")
+.select("*");
+
+setTargets(data || []);
+}
+
+/* =====================
+FILTER BULAN
+===================== */
+
+const filteredData = data.filter(d=>{
+
+if(!monthFilter) return true;
+
+const month = new Date(d.tanggal).getMonth()+1;
+
+return month === parseInt(monthFilter);
 
 });
 
-/* ===============================
-KPI
-=============================== */
+/* =====================
+PROGRESS HARI INI
+===================== */
 
-const total=filtered.length;
+const today = new Date().toISOString().slice(0,10);
 
-const closing=filtered.filter(
+const todayData = filteredData.filter(
+d=>d.tanggal===today
+);
+
+const closing = todayData.filter(d=>d.status==="Closing").length;
+const pending = todayData.filter(d=>d.status==="Pending").length;
+const reject = todayData.filter(d=>d.status==="Reject").length;
+
+const totalToday = todayData.length;
+
+const progressData=[
+{ name:"progress", value:totalToday },
+{ name:"remain", value:100-totalToday }
+];
+
+const COLORS=["#3b82f6","#e5e7eb"];
+
+/* =====================
+TARGET BULAN
+===================== */
+
+const month = new Date().toISOString().slice(0,7);
+
+const monthTargets = targets.filter(
+t=>t.bulan===month
+);
+
+const totalTarget = monthTargets.reduce(
+(sum,t)=>sum+t.target,
+0
+);
+
+/* =====================
+TOTAL INPUT BULAN INI
+===================== */
+
+const monthInput = filteredData.length;
+
+/* STATUS BREAKDOWN */
+
+const monthClosing = filteredData.filter(
 d=>d.status==="Closing"
 ).length;
 
-/* ===============================
-TARGET
-=============================== */
+const monthPending = filteredData.filter(
+d=>d.status==="Pending"
+).length;
 
-const filteredPromotors = promotors.filter(p=>{
+const monthReject = filteredData.filter(
+d=>d.status==="Reject"
+).length;
 
-if(areaFilter && p.area!==areaFilter) return false;
+/* =====================
+PERSENTASE TARGET
+===================== */
 
-if(satorFilter && p.sator!==satorFilter) return false;
+const percentTarget = totalTarget
+? Math.round((monthInput/totalTarget)*100)
+:0;
 
-return true;
+/* =====================
+PERFORMA SATOR
+===================== */
+
+const satorStats:any={};
+
+filteredData.forEach(d=>{
+
+const p=promotors.find(
+x=>x.nama_promotor===d.promotor
+);
+
+const sator=p?.sator;
+
+if(!sator) return;
+
+if(!satorStats[sator]){
+satorStats[sator]={input:0,target:0};
+}
+
+satorStats[sator].input++;
 
 });
 
-const promotorNames = filteredPromotors.map(
-p=>p.nama_promotor
+targets.forEach(t=>{
+
+const p=promotors.find(
+x=>x.nama_promotor===t.promotor
 );
 
-const filteredTargets = targets.filter(
-t=>promotorNames.includes(t.promotor)
-);
+const sator=p?.sator;
 
-const totalTarget = filteredTargets.reduce(
-(sum,t)=>sum+(t.target||0),
-0
-);
+if(!sator) return;
 
-const achievement = totalTarget
-? ((closing/totalTarget)*100).toFixed(1)
-: 0;
+if(!satorStats[sator]){
+satorStats[sator]={input:0,target:0};
+}
 
-/* ===============================
-AI PREDICTION
-=============================== */
+satorStats[sator].target+=t.target;
 
-const today=new Date();
+});
 
-const currentDay=today.getDate();
+const satorPerformance = Object.keys(satorStats).map(s=>{
 
-const daysInMonth=new Date(
-today.getFullYear(),
-today.getMonth()+1,
-0
-).getDate();
+const input=satorStats[s].input;
+const target=satorStats[s].target;
 
-const avgClosingPerDay = closing/currentDay;
+const percent = target
+? Math.round((input/target)*100)
+:0;
 
-const predictedClosing = Math.round(
-avgClosingPerDay * daysInMonth
-);
+return{
+sator:s,
+input,
+target,
+percent
+};
 
-/* ===============================
-AREA PROGRESS
-=============================== */
+});
+
+/* =====================
+PERFORMA AREA
+===================== */
 
 const areaStats:any={};
 
-filtered.forEach(d=>{
+filteredData.forEach(d=>{
 
-const promotorData = promotors.find(
-p=>p.nama_promotor===d.promotor
+const p=promotors.find(
+x=>x.nama_promotor===d.promotor
 );
 
-const area = promotorData?.area;
+const area=p?.area;
 
 if(!area) return;
 
 if(!areaStats[area]){
-areaStats[area]={closing:0};
+areaStats[area]={input:0,target:0};
 }
 
-if(d.status==="Closing"){
-areaStats[area].closing++;
-}
+areaStats[area].input++;
 
 });
 
-const areaProgress=Object.keys(areaStats).map(a=>({
+targets.forEach(t=>{
 
-area:a,
-
-closing:areaStats[a].closing,
-
-target: filteredTargets
-.filter(t=>t.area===a)
-.reduce((sum,t)=>sum+(t.target||0),0)
-
-}));
-
-/* ===============================
-DEALER LEADERBOARD
-=============================== */
-
-const dealerStats:any={};
-
-filtered.forEach(d=>{
-
-if(!dealerStats[d.toko]){
-dealerStats[d.toko]={pengajuan:0,closing:0};
-}
-
-dealerStats[d.toko].pengajuan++;
-
-if(d.status==="Closing"){
-dealerStats[d.toko].closing++;
-}
-
-});
-
-const dealerLeaderboard=Object.keys(dealerStats)
-.map(t=>({
-
-toko:t,
-pengajuan:dealerStats[t].pengajuan,
-closing:dealerStats[t].closing,
-
-index: dealerStats[t].pengajuan
-? Math.round((dealerStats[t].closing/dealerStats[t].pengajuan)*100)
-:0
-
-}))
-.sort((a,b)=>b.closing-a.closing);
-
-/* ===============================
-SPV LEADERBOARD
-=============================== */
-
-const spvStats:any={};
-
-filtered.forEach(d=>{
-
-const promotorData = promotors.find(
-p=>p.nama_promotor===d.promotor
+const p=promotors.find(
+x=>x.nama_promotor===t.promotor
 );
 
-const sator = promotorData?.sator;
-
-if(!sator) return;
-
-if(!spvStats[sator]){
-spvStats[sator]={pengajuan:0,closing:0};
-}
-
-spvStats[sator].pengajuan++;
-
-if(d.status==="Closing"){
-spvStats[sator].closing++;
-}
-
-});
-
-const spvLeaderboard=Object.keys(spvStats)
-.map(s=>({
-
-sator:s,
-pengajuan:spvStats[s].pengajuan,
-closing:spvStats[s].closing
-
-}))
-.sort((a,b)=>b.closing-a.closing);
-
-/* ===============================
-PROMOTOR LEADERBOARD
-=============================== */
-
-const promotorArea:any={};
-
-filtered.forEach(d=>{
-
-const promotorData = promotors.find(
-p=>p.nama_promotor===d.promotor
-);
-
-const area = promotorData?.area;
+const area=p?.area;
 
 if(!area) return;
 
-const key=area+"-"+d.promotor;
-
-if(!promotorArea[key]){
-promotorArea[key]={area,promotor:d.promotor,closing:0};
+if(!areaStats[area]){
+areaStats[area]={input:0,target:0};
 }
 
-if(d.status==="Closing"){
-promotorArea[key].closing++;
-}
+areaStats[area].target+=t.target;
 
 });
 
-const promotorAreaRank=Object.values(promotorArea)
-.sort((a:any,b:any)=>b.closing-a.closing);
+const areaPerformance = Object.keys(areaStats).map(a=>{
 
-/* ===============================
-HEATMAP
-=============================== */
+const input=areaStats[a].input;
+const target=areaStats[a].target;
 
-const heatmapData=filtered
-.filter(d=>d.status==="Closing")
-.map(d=>({date:d.tanggal,count:1}));
+const percent = target
+? Math.round((input/target)*100)
+:0;
 
-/* ===============================
+return{
+area:a,
+input,
+target,
+percent
+};
+
+});
+
+/* =====================
+PROMOTOR RANKING
+===================== */
+
+const promotorRank = promotors.map(p=>{
+
+const closing = filteredData.filter(
+d=>d.promotor===p.nama_promotor && d.status==="Closing"
+).length;
+
+return{
+promotor:p.nama_promotor,
+closing
+}
+
+}).sort((a,b)=>b.closing-a.closing);
+
+/* =====================
+DEALER RANKING
+===================== */
+
+const dealerRank = tokos.map(t=>{
+
+const closing = filteredData.filter(
+d=>d.toko===t.nama_toko && d.status==="Closing"
+).length;
+
+return{
+dealer:t.nama_toko,
+closing
+}
+
+}).sort((a,b)=>b.closing-a.closing);
+
+/* =====================
+AI PREDIKSI
+===================== */
+
+const todayDay = new Date().getDate();
+const daysMonth = new Date().getDate();
+
+const avgClosing = monthClosing / todayDay;
+
+const predictedClosing = Math.round(
+avgClosing * 30
+);
+
+/* =====================
 EXPORT EXCEL
-=============================== */
+===================== */
 
 function exportExcel(){
 
-const worksheet=XLSX.utils.json_to_sheet(filtered);
+const worksheet = XLSX.utils.json_to_sheet(filteredData);
 
-const workbook=XLSX.utils.book_new();
+const workbook = XLSX.utils.book_new();
 
-XLSX.utils.book_append_sheet(
-workbook,
-worksheet,
-"report"
-);
+XLSX.utils.book_append_sheet(workbook,worksheet,"report");
 
-const excelBuffer=XLSX.write(
-workbook,
-{bookType:"xlsx",type:"array"}
-);
+const excelBuffer = XLSX.write(workbook,{
+bookType:"xlsx",
+type:"array"
+});
 
-const blob=new Blob(
-[excelBuffer],
-{type:"application/octet-stream"}
-);
+const blob = new Blob([excelBuffer],{
+type:"application/octet-stream"
+});
 
-saveAs(blob,"report_kredit.xlsx");
+saveAs(blob,"report_kredit_vivo.xlsx");
 
 }
 
-/* ===============================
+/* =====================
 UI
-=============================== */
+===================== */
 
 return(
 
-<div className="p-6 space-y-10">
+<div className="max-w-md mx-auto bg-gray-100 min-h-screen pb-24">
 
-<h1 className="text-3xl font-bold">
+<div className="bg-gradient-to-r from-yellow-500 to-blue-500 text-white p-6 rounded-b-3xl">
+
+<div className="flex items-center justify-between">
+
+<h2 className="font-bold text-lg">
 Dashboard Kredit Vivo Flores
-</h1>
+</h2>
+
+<img
+src="/logo-vivo.png"
+alt="Vivo Logo"
+className="h-20 w-auto object-contain"
+/>
+
+</div>
+
+</div>
 
 {/* FILTER */}
 
-<div className="flex gap-3 flex-wrap">
-
-<select
-className="border p-2 rounded"
-value={areaFilter}
-onChange={(e)=>setAreaFilter(e.target.value)}
->
-
-<option value="">Filter Area</option>
-
-{areaList.map((a,i)=>(
-<option key={i} value={a}>{a}</option>
-))}
-
-</select>
-
-<select
-className="border p-2 rounded"
-value={satorFilter}
-onChange={(e)=>setSatorFilter(e.target.value)}
->
-
-<option value="">Filter Sator</option>
-
-{satorList.map((s,i)=>(
-<option key={i} value={s}>{s}</option>
-))}
-
-</select>
+<div className="flex gap-2 p-4">
 
 <select
 className="border p-2 rounded"
@@ -390,8 +373,7 @@ value={monthFilter}
 onChange={(e)=>setMonthFilter(e.target.value)}
 >
 
-<option value="">Filter Bulan</option>
-
+<option value="">Semua Bulan</option>
 <option value="1">Jan</option>
 <option value="2">Feb</option>
 <option value="3">Mar</option>
@@ -409,210 +391,271 @@ onChange={(e)=>setMonthFilter(e.target.value)}
 
 <button
 onClick={exportExcel}
-className="bg-green-600 text-white px-4 py-2 rounded"
+className="bg-green-600 text-white px-3 rounded"
 >
-Export Excel
+Export
 </button>
 
 </div>
 
-{/* KPI */}
+{/* DASHBOARD */}
 
-<div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+{tab==="dashboard" && (
 
-<div className="bg-blue-500 text-white p-4 rounded">
-Total
-<h2 className="text-2xl">{total}</h2>
+<div>
+
+{/* PROGRESS */}
+
+<div className="bg-white rounded-2xl p-4 shadow mx-4 mt-4">
+
+<h3 className="font-semibold mb-3">
+Progress Hari Ini
+</h3>
+
+<div className="flex justify-center">
+
+<ResponsiveContainer width={200} height={200}>
+
+<PieChart>
+
+<Pie
+data={progressData}
+innerRadius={60}
+outerRadius={80}
+dataKey="value"
+>
+
+{progressData.map((entry,index)=>(
+<Cell key={index} fill={COLORS[index]} />
+))}
+
+</Pie>
+
+</PieChart>
+
+</ResponsiveContainer>
+
 </div>
 
-<div className="bg-green-500 text-white p-4 rounded">
+<p className="text-center text-3xl font-bold">
+{totalToday}
+</p>
+
+<div className="grid grid-cols-3 gap-3 mt-4">
+
+<div className="bg-blue-700 p-3 rounded text-center">
 Closing
-<h2 className="text-2xl">{closing}</h2>
+<p className="font-bold">{closing}</p>
 </div>
 
-<div className="bg-gray-800 text-white p-4 rounded">
-Target
-<h2 className="text-2xl">{totalTarget}</h2>
+<div className="bg-yellow-400 p-3 rounded text-center">
+Pending
+<p className="font-bold">{pending}</p>
 </div>
 
-<div className="bg-emerald-700 text-white p-4 rounded">
-Achievement
-<h2 className="text-2xl">{achievement}%</h2>
+<div className="bg-red-500 p-3 rounded text-center">
+Reject
+<p className="font-bold">{reject}</p>
 </div>
-
-<div className="bg-yellow-600 text-white p-4 rounded">
-AI Prediksi
-<h2 className="text-2xl">{predictedClosing}</h2>
-</div>
-
-</div>
-
-{/* TARGET PROGRESS */}
-
-<h2 className="text-xl font-bold">
-Target Progress per Area
-</h2>
-
-{areaProgress.map((a,i)=>{
-
-const percent=a.target
-? Math.round((a.closing/a.target)*100)
-:0;
-
-return(
-
-<div key={i} className="mb-3">
-
-<div className="flex justify-between text-sm">
-<span>{a.area}</span>
-<span>{a.closing}/{a.target}</span>
-</div>
-
-<div className="w-full bg-gray-200 rounded h-3">
-
-<div
-className="bg-green-500 h-3 rounded"
-style={{width:percent+"%"}}
-/>
 
 </div>
 
 </div>
 
-)
+{/* TARGET */}
 
-})}
+<div className="bg-white p-4 rounded-2xl shadow mx-4 mt-4">
 
-{/* DEALER */}
+<h3 className="font-semibold mb-3">
+Target Bulan Ini
+</h3>
 
-<h2 className="text-xl font-bold">
-Leaderboard Dealer
-</h2>
+<h1 className="text-xl font-bold">
+{monthInput} / {totalTarget}
+</h1>
 
-<table className="w-full border">
+<div className="grid grid-cols-3 gap-2 mt-3 text-xs">
 
-<thead className="bg-gray-200">
+<div className="bg-blue-400 p-2 rounded text-center">
+Closing:
+<b>  {monthClosing}  </b>
+</div>
 
-<tr>
-<th>Rank</th>
-<th>Dealer</th>
-<th>Pengajuan</th>
-<th>Closing</th>
-<th>Index</th>
-</tr>
+<div className="bg-yellow-400 p-2 rounded text-center">
+Pending:
+<b>    {monthPending}    </b>
+</div>
 
-</thead>
+<div className="bg-red-600 p-2 rounded text-center">
+Reject:
+<b>  {monthReject}  </b>
+</div>
 
-<tbody>
+</div>
 
-{dealerLeaderboard.map((d,i)=>(
+</div>
 
-<tr key={i}>
+{/* PERFORMA SATOR */}
 
-<td>{i+1}</td>
-<td>{d.toko}</td>
-<td>{d.pengajuan}</td>
-<td>{d.closing}</td>
-<td>{d.index}%</td>
+<div className="mx-4 mt-4">
 
-</tr>
+<h3 className="font-semibold mb-2">
+Performa Sator
+</h3>
+
+{satorPerformance.map((s,i)=>(
+
+<div key={i} className="bg-white p-4 rounded shadow mb-3">
+
+<div className="flex justify-between">
+
+<b>{s.sator}</b>
+<span>{s.percent}%</span>
+
+</div>
+
+<p className="text-sm">
+Input {s.input} / Target {s.target}
+</p>
+
+</div>
 
 ))}
 
-</tbody>
+</div>
 
-</table>
+{/* PERFORMA AREA */}
 
-{/* SPV */}
+<div className="mx-4 mt-4">
 
-<h2 className="text-xl font-bold">
-Leaderboard SPV
-</h2>
+<h3 className="font-semibold mb-2">
+Performa Area
+</h3>
 
-<table className="w-full border">
+{areaPerformance.map((a,i)=>(
 
-<thead className="bg-gray-200">
+<div key={i} className="bg-yellow p-4 rounded shadow mb-3">
 
-<tr>
-<th>Rank</th>
-<th>SPV</th>
-<th>Pengajuan</th>
-<th>Closing</th>
-</tr>
+<div className="flex justify-between">
 
-</thead>
+<b>{a.area}</b>
+<span>{a.percent}%</span>
 
-<tbody>
+</div>
 
-{spvLeaderboard.map((s,i)=>(
+<p className="text-sm">
+Input {a.input} / Target {a.target}
+</p>
 
-<tr key={i}>
-
-<td>{i+1}</td>
-<td>{s.sator}</td>
-<td>{s.pengajuan}</td>
-<td>{s.closing}</td>
-
-</tr>
+</div>
 
 ))}
 
-</tbody>
+</div>
 
-</table>
+</div>
+
+)}
 
 {/* PROMOTOR */}
 
-<h2 className="text-xl font-bold">
-Leaderboard Promotor per Area
-</h2>
+{tab==="promotor" && (
 
-<table className="w-full border">
+<div className="mx-4 mt-4">
 
-<thead className="bg-gray-200">
+<h3 className="font-bold mb-3">
+Ranking Promotor
+</h3>
 
-<tr>
-<th>Rank</th>
-<th>Area</th>
-<th>Promotor</th>
-<th>Closing</th>
-</tr>
+{promotorRank.map((p,i)=>(
 
-</thead>
+<div key={i} className="bg-white p-3 rounded shadow mb-2 flex justify-between">
 
-<tbody>
+<span>{i+1}. {p.promotor}</span>
+<b>{p.closing}</b>
 
-{promotorAreaRank.slice(0,20).map((p:any,i)=>(
-
-<tr
-key={i}
-className={i===0?"bg-yellow-200 font-bold":""}
->
-
-<td>{i+1}</td>
-<td>{p.area}</td>
-<td>{p.promotor}</td>
-<td>{p.closing}</td>
-
-</tr>
+</div>
 
 ))}
 
-</tbody>
+</div>
 
-</table>
+)}
 
-{/* HEATMAP */}
+{/* DEALER */}
 
-<h2 className="text-xl font-bold">
-Heatmap Closing Harian
-</h2>
+{tab==="dealer" && (
 
-<CalendarHeatmap
-startDate="2026-01-01"
-endDate="2026-12-31"
-values={heatmapData}
-/>
+<div className="mx-4 mt-4">
+
+<h3 className="font-bold mb-3">
+Leaderboard Dealer
+</h3>
+
+{dealerRank.map((d,i)=>(
+
+<div key={i} className="bg-white p-3 rounded shadow mb-2 flex justify-between">
+
+<span>{d.dealer}</span>
+<b>{d.closing}</b>
+
+</div>
+
+))}
+
+</div>
+
+)}
+
+{/* AI */}
+
+{tab==="ai" && (
+
+<div className="mx-4 mt-4">
+
+<h3 className="font-bold mb-3">
+AI Prediksi Closing
+</h3>
+
+<div className="bg-white p-4 rounded shadow">
+
+Prediksi Closing Bulan Ini
+
+<h1 className="text-2xl font-bold">
+{predictedClosing}
+</h1>
+
+</div>
+
+</div>
+
+)}
+
+{/* NAVIGATION */}
+
+<div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white shadow p-3 flex justify-around">
+
+<button onClick={()=>setTab("dashboard")}>
+🏠
+<p className="text-xs">Dashboard</p>
+</button>
+
+<button onClick={()=>setTab("promotor")}>
+👥
+<p className="text-xs">Promotor</p>
+</button>
+
+<button onClick={()=>setTab("dealer")}>
+🏪
+<p className="text-xs">Dealer</p>
+</button>
+
+<button onClick={()=>setTab("ai")}>
+🤖
+<p className="text-xs">AI</p>
+</button>
+
+</div>
 
 </div>
 

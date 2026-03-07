@@ -169,6 +169,17 @@ placeholder="Nama Konsumen"
 onChange={(e)=>setKonsumen(e.target.value)}
 />
 
+<input
+className="border p-2 mb-2 w-full"
+placeholder="Pekerjaan"
+onChange={(e)=>setKonsumen(e.target.value)}
+/>
+
+<input
+className="border p-2 mb-2 w-full"
+placeholder="No.HP Konsumen"
+onChange={(e)=>setKonsumen(e.target.value)}
+/>
 
 <input
 className="border p-2 mb-2 w-full"
@@ -204,9 +215,7 @@ onChange={(e)=>setStatus(e.target.value)}
 >
 
 <option value="Pending">Pending</option>
-<option value="TACC">TACC</option>
-<option value="ACC">ACC</option>
-<option value="Closing">Closing</option>
+<option value="Clossing">Clossing</option>
 <option value="Reject">Reject</option>
 
 </select>
