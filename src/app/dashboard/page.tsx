@@ -3,20 +3,9 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 
-import {
-BarChart,
-Bar,
-XAxis,
-YAxis,
-Tooltip,
-ResponsiveContainer,
-CartesianGrid,
-LineChart,
-Line
-} from "recharts";
-
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
+
 import CalendarHeatmap from "react-calendar-heatmap";
 import "react-calendar-heatmap/dist/styles.css";
 
@@ -29,6 +18,10 @@ const [promotors,setPromotors]=useState<any[]>([]);
 const [areaFilter,setAreaFilter]=useState("");
 const [satorFilter,setSatorFilter]=useState("");
 const [monthFilter,setMonthFilter]=useState("");
+
+/* ===============================
+LOAD DATA
+=============================== */
 
 useEffect(()=>{
 
@@ -50,27 +43,53 @@ return()=>{ supabase.removeChannel(channel); };
 },[]);
 
 async function loadData(){
-const { data } = await supabase.from("kredit_vast").select("*");
+const { data } = await supabase
+.from("kredit_vast")
+.select("*");
+
 if(data) setData(data);
 }
 
 async function loadTargets(){
-const { data } = await supabase.from("targets").select("*");
+const { data } = await supabase
+.from("targets")
+.select("*");
+
 if(data) setTargets(data);
 }
 
 async function loadPromotors(){
-const { data } = await supabase.from("promotors").select("*");
+const { data } = await supabase
+.from("promotors")
+.select("*");
+
 if(data) setPromotors(data);
 }
 
+/* ===============================
+AREA & SATOR LIST
+=============================== */
+
 const areaList=[...new Set(promotors.map(p=>p.area).filter(Boolean))];
+
 const satorList=[...new Set(promotors.map(p=>p.sator).filter(Boolean))];
+
+/* ===============================
+FILTER DATA
+=============================== */
 
 const filtered=data.filter(d=>{
 
-if(areaFilter && d.area!==areaFilter) return false;
-if(satorFilter && d.sator!==satorFilter) return false;
+const promotorData = promotors.find(
+p=>p.nama_promotor===d.promotor
+);
+
+const area = promotorData?.area;
+const sator = promotorData?.sator;
+
+if(areaFilter && area!==areaFilter) return false;
+
+if(satorFilter && sator!==satorFilter) return false;
 
 if(monthFilter){
 const month=new Date(d.tanggal).getMonth()+1;
@@ -81,16 +100,19 @@ return true;
 
 });
 
+/* ===============================
+KPI
+=============================== */
+
 const total=filtered.length;
-const pending=filtered.filter(d=>d.status==="Pending").length;
-const tacc=filtered.filter(d=>d.status==="TACC").length;
-const acc=filtered.filter(d=>d.status==="ACC").length;
-const closing=filtered.filter(d=>d.status==="Closing").length;
-const reject=filtered.filter(d=>d.status==="Reject").length;
 
-/* TARGET FOLLOW FILTER AREA / SATOR */
+const closing=filtered.filter(
+d=>d.status==="Closing"
+).length;
 
-/* ambil promotor sesuai filter */
+/* ===============================
+TARGET
+=============================== */
 
 const filteredPromotors = promotors.filter(p=>{
 
@@ -102,53 +124,84 @@ return true;
 
 });
 
-/* ambil nama promotor */
-
-const promotorNames = filteredPromotors.map(p=>p.nama_promotor);
-
-/* hitung target hanya promotor yang terfilter */
-
-const filteredTargets = targets.filter(t=>
-promotorNames.includes(t.promotor)
+const promotorNames = filteredPromotors.map(
+p=>p.nama_promotor
 );
 
-/* total target */
+const filteredTargets = targets.filter(
+t=>promotorNames.includes(t.promotor)
+);
 
 const totalTarget = filteredTargets.reduce(
 (sum,t)=>sum+(t.target||0),
 0
 );
 
-/* closing bulan ini */
-
-const monthClosing = filtered.filter(
-d=>d.status==="Closing"
-).length;
-
-/* gap */
-
-const gapTarget = totalTarget - monthClosing;
-
-/* achievement */
-
 const achievement = totalTarget
-? ((monthClosing/totalTarget)*100).toFixed(1)
+? ((closing/totalTarget)*100).toFixed(1)
 : 0;
 
-/* AI WARNING TARGET */
-
-const warningTarget = monthClosing < totalTarget * 0.7;
-
-/* AI PREDIKSI */
+/* ===============================
+AI PREDICTION
+=============================== */
 
 const today=new Date();
+
 const currentDay=today.getDate();
-const daysInMonth=new Date(today.getFullYear(),today.getMonth()+1,0).getDate();
 
-const avgClosingPerDay=monthClosing/currentDay;
-const predictedClosing=Math.round(avgClosingPerDay*daysInMonth);
+const daysInMonth=new Date(
+today.getFullYear(),
+today.getMonth()+1,
+0
+).getDate();
 
-/* LEADERBOARD DEALER */
+const avgClosingPerDay = closing/currentDay;
+
+const predictedClosing = Math.round(
+avgClosingPerDay * daysInMonth
+);
+
+/* ===============================
+AREA PROGRESS
+=============================== */
+
+const areaStats:any={};
+
+filtered.forEach(d=>{
+
+const promotorData = promotors.find(
+p=>p.nama_promotor===d.promotor
+);
+
+const area = promotorData?.area;
+
+if(!area) return;
+
+if(!areaStats[area]){
+areaStats[area]={closing:0};
+}
+
+if(d.status==="Closing"){
+areaStats[area].closing++;
+}
+
+});
+
+const areaProgress=Object.keys(areaStats).map(a=>({
+
+area:a,
+
+closing:areaStats[a].closing,
+
+target: filteredTargets
+.filter(t=>t.area===a)
+.reduce((sum,t)=>sum+(t.target||0),0)
+
+}));
+
+/* ===============================
+DEALER LEADERBOARD
+=============================== */
 
 const dealerStats:any={};
 
@@ -172,6 +225,7 @@ const dealerLeaderboard=Object.keys(dealerStats)
 toko:t,
 pengajuan:dealerStats[t].pengajuan,
 closing:dealerStats[t].closing,
+
 index: dealerStats[t].pengajuan
 ? Math.round((dealerStats[t].closing/dealerStats[t].pengajuan)*100)
 :0
@@ -179,20 +233,30 @@ index: dealerStats[t].pengajuan
 }))
 .sort((a,b)=>b.closing-a.closing);
 
-/* LEADERBOARD SPV */
+/* ===============================
+SPV LEADERBOARD
+=============================== */
 
 const spvStats:any={};
 
 filtered.forEach(d=>{
 
-if(!spvStats[d.sator]){
-spvStats[d.sator]={pengajuan:0,closing:0};
+const promotorData = promotors.find(
+p=>p.nama_promotor===d.promotor
+);
+
+const sator = promotorData?.sator;
+
+if(!sator) return;
+
+if(!spvStats[sator]){
+spvStats[sator]={pengajuan:0,closing:0};
 }
 
-spvStats[d.sator].pengajuan++;
+spvStats[sator].pengajuan++;
 
 if(d.status==="Closing"){
-spvStats[d.sator].closing++;
+spvStats[sator].closing++;
 }
 
 });
@@ -207,16 +271,26 @@ closing:spvStats[s].closing
 }))
 .sort((a,b)=>b.closing-a.closing);
 
-/* PROMOTOR RANK */
+/* ===============================
+PROMOTOR LEADERBOARD
+=============================== */
 
 const promotorArea:any={};
 
 filtered.forEach(d=>{
 
-const key=d.area+"-"+d.promotor;
+const promotorData = promotors.find(
+p=>p.nama_promotor===d.promotor
+);
+
+const area = promotorData?.area;
+
+if(!area) return;
+
+const key=area+"-"+d.promotor;
 
 if(!promotorArea[key]){
-promotorArea[key]={area:d.area,promotor:d.promotor,closing:0};
+promotorArea[key]={area,promotor:d.promotor,closing:0};
 }
 
 if(d.status==="Closing"){
@@ -228,121 +302,72 @@ promotorArea[key].closing++;
 const promotorAreaRank=Object.values(promotorArea)
 .sort((a:any,b:any)=>b.closing-a.closing);
 
-/* AREA PERFORMANCE */
-
-const areaStats:any={};
-
-filtered.forEach(d=>{
-
-if(!areaStats[d.area]){
-areaStats[d.area]={closing:0};
-}
-
-if(d.status==="Closing"){
-areaStats[d.area].closing++;
-}
-
-});
-
-const areaProgress=Object.keys(areaStats).map(a=>({
-
-area:a,
-closing:areaStats[a].closing,
-target: filteredTargets
-.filter(t=>t.area===a)
-.reduce((sum,t)=>sum+(t.target||0),0)
-
-}));
-
-/* TREND */
-
-function getWeek(date:any){
-
-const d=new Date(date);
-const first=new Date(d.getFullYear(),0,1);
-const diff=(d.getTime()-first.getTime())/86400000;
-
-return Math.ceil((diff+first.getDay()+1)/7);
-
-}
-
-const weeklyStats:any={};
-
-filtered.forEach(d=>{
-
-if(d.status!=="Closing") return;
-
-const week=getWeek(d.tanggal);
-
-if(!weeklyStats[week]) weeklyStats[week]=0;
-
-weeklyStats[week]++;
-
-});
-
-const weeklyChart=Object.keys(weeklyStats).map(w=>({
-
-week:"Week "+w,
-closing:weeklyStats[w]
-
-}));
-
-/* HEATMAP */
+/* ===============================
+HEATMAP
+=============================== */
 
 const heatmapData=filtered
 .filter(d=>d.status==="Closing")
 .map(d=>({date:d.tanggal,count:1}));
 
-/* EXPORT */
+/* ===============================
+EXPORT EXCEL
+=============================== */
 
 function exportExcel(){
 
 const worksheet=XLSX.utils.json_to_sheet(filtered);
+
 const workbook=XLSX.utils.book_new();
 
-XLSX.utils.book_append_sheet(workbook,worksheet,"report");
+XLSX.utils.book_append_sheet(
+workbook,
+worksheet,
+"report"
+);
 
-const excelBuffer=XLSX.write(workbook,{bookType:"xlsx",type:"array"});
+const excelBuffer=XLSX.write(
+workbook,
+{bookType:"xlsx",type:"array"}
+);
 
-const blob=new Blob([excelBuffer],{type:"application/octet-stream"});
+const blob=new Blob(
+[excelBuffer],
+{type:"application/octet-stream"}
+);
 
 saveAs(blob,"report_kredit.xlsx");
 
 }
 
-/* UI */
+/* ===============================
+UI
+=============================== */
 
 return(
 
-<div className="p-4 md:p-10 space-y-10">
+<div className="p-6 space-y-10">
 
-<div className="flex items-center justify-between border-b pb-4">
-
-<h1 className="text-xl md:text-3xl font-bold">
+<h1 className="text-3xl font-bold">
 Dashboard Kredit Vivo Flores
 </h1>
 
-<img
-src="/logo-vivo.png"
-alt="Vivo Logo"
-className="h-10 md:h-14 object-contain"
-/>
-
-</div>
-
 {/* FILTER */}
 
-<div className="flex flex-col md:flex-row gap-3">
+<div className="flex gap-3 flex-wrap">
 
 <select
 className="border p-2 rounded"
 value={areaFilter}
 onChange={(e)=>setAreaFilter(e.target.value)}
 >
+
 <option value="">Filter Area</option>
+
 {areaList.map((a,i)=>(
 <option key={i} value={a}>{a}</option>
 ))}
+
 </select>
 
 <select
@@ -350,10 +375,13 @@ className="border p-2 rounded"
 value={satorFilter}
 onChange={(e)=>setSatorFilter(e.target.value)}
 >
+
 <option value="">Filter Sator</option>
+
 {satorList.map((s,i)=>(
 <option key={i} value={s}>{s}</option>
 ))}
+
 </select>
 
 <select
@@ -361,19 +389,22 @@ className="border p-2 rounded"
 value={monthFilter}
 onChange={(e)=>setMonthFilter(e.target.value)}
 >
+
 <option value="">Filter Bulan</option>
-<option value="1">Januari</option>
-<option value="2">Februari</option>
-<option value="3">Maret</option>
-<option value="4">April</option>
+
+<option value="1">Jan</option>
+<option value="2">Feb</option>
+<option value="3">Mar</option>
+<option value="4">Apr</option>
 <option value="5">Mei</option>
-<option value="6">Juni</option>
-<option value="7">Juli</option>
-<option value="8">Agustus</option>
-<option value="9">September</option>
-<option value="10">Oktober</option>
-<option value="11">November</option>
-<option value="12">Desember</option>
+<option value="6">Jun</option>
+<option value="7">Jul</option>
+<option value="8">Agu</option>
+<option value="9">Sep</option>
+<option value="10">Okt</option>
+<option value="11">Nov</option>
+<option value="12">Des</option>
+
 </select>
 
 <button
@@ -387,7 +418,7 @@ Export Excel
 
 {/* KPI */}
 
-<div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
+<div className="grid grid-cols-2 md:grid-cols-5 gap-4">
 
 <div className="bg-blue-500 text-white p-4 rounded">
 Total
@@ -410,21 +441,13 @@ Achievement
 </div>
 
 <div className="bg-yellow-600 text-white p-4 rounded">
-Prediksi Closing
+AI Prediksi
 <h2 className="text-2xl">{predictedClosing}</h2>
 </div>
 
 </div>
 
-{/* WARNING */}
-
-{warningTarget && (
-<div className="bg-red-100 border border-red-400 p-4 rounded text-red-700">
-⚠ Target kemungkinan tidak tercapai bulan ini
-</div>
-)}
-
-{/* PROGRESS AREA */}
+{/* TARGET PROGRESS */}
 
 <h2 className="text-xl font-bold">
 Target Progress per Area
@@ -432,7 +455,9 @@ Target Progress per Area
 
 {areaProgress.map((a,i)=>{
 
-const percent=a.target?Math.round((a.closing/a.target)*100):0;
+const percent=a.target
+? Math.round((a.closing/a.target)*100)
+:0;
 
 return(
 
@@ -458,34 +483,6 @@ style={{width:percent+"%"}}
 
 })}
 
-{/* HEATMAP */}
-
-<h2 className="text-xl font-bold">
-Heatmap Closing Harian
-</h2>
-
-<CalendarHeatmap
-startDate="2026-01-01"
-endDate="2026-12-31"
-values={heatmapData}
-/>
-
-{/* TREND */}
-
-<h2 className="text-xl font-bold">
-Trend Closing per Minggu
-</h2>
-
-<ResponsiveContainer width="100%" height={250}>
-<LineChart data={weeklyChart}>
-<CartesianGrid strokeDasharray="3 3"/>
-<XAxis dataKey="week"/>
-<YAxis/>
-<Tooltip/>
-<Line type="monotone" dataKey="closing" stroke="#22c55e" strokeWidth={3}/>
-</LineChart>
-</ResponsiveContainer>
-
 {/* DEALER */}
 
 <h2 className="text-xl font-bold">
@@ -510,7 +507,7 @@ Leaderboard Dealer
 
 {dealerLeaderboard.map((d,i)=>(
 
-<tr key={i} className="border">
+<tr key={i}>
 
 <td>{i+1}</td>
 <td>{d.toko}</td>
@@ -549,7 +546,7 @@ Leaderboard SPV
 
 {spvLeaderboard.map((s,i)=>(
 
-<tr key={i} className="border">
+<tr key={i}>
 
 <td>{i+1}</td>
 <td>{s.sator}</td>
@@ -589,7 +586,7 @@ Leaderboard Promotor per Area
 
 <tr
 key={i}
-className={`border ${i===0 ? "bg-yellow-200 font-bold" : ""}`}
+className={i===0?"bg-yellow-200 font-bold":""}
 >
 
 <td>{i+1}</td>
@@ -604,6 +601,18 @@ className={`border ${i===0 ? "bg-yellow-200 font-bold" : ""}`}
 </tbody>
 
 </table>
+
+{/* HEATMAP */}
+
+<h2 className="text-xl font-bold">
+Heatmap Closing Harian
+</h2>
+
+<CalendarHeatmap
+startDate="2026-01-01"
+endDate="2026-12-31"
+values={heatmapData}
+/>
 
 </div>
 
