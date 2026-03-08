@@ -323,21 +323,59 @@ return new Date(`2026-${m1}-${d1}`).getTime() - new Date(`2026-${m2}-${d2}`).get
 
 
 /* =====================
+/* =====================
+/* =====================
+/* =====================
+/* =====================
 PROMOTOR RANKING
 ===================== */
 
-const promotorRank = promotors.map(p=>{
+const normalize = (text)=>
+(text || "").toString().trim().toLowerCase();
 
-const closing = filteredData.filter(
-d=>d.promotor===p.nama_promotor && d.status==="Closing"
+const promotorRank = promotors
+.map(p=>{
+
+const namaPromotor = normalize(p.nama_promotor);
+
+const dataPromotor = filteredData.filter(
+d => normalize(d.promotor) === namaPromotor
+);
+
+const pengajuan = dataPromotor.length;
+
+const pending = dataPromotor.filter(
+d => normalize(d.status) === "pending"
 ).length;
+
+const acc = dataPromotor.filter(
+d => normalize(d.status).includes("clos")
+).length;
+
+const reject = dataPromotor.filter(
+d => normalize(d.status) === "reject"
+).length;
+
+/* SUCCESS RATE */
+
+const successRate = pengajuan
+? Math.round((acc / pengajuan) * 100)
+: 0;
 
 return{
 promotor:p.nama_promotor,
-closing
-}
+pengajuan,
+pending,
+acc,
+reject,
+successRate
+};
 
-}).sort((a,b)=>b.closing-a.closing);
+})
+
+/* RANKING BERDASARKAN JUMLAH PENGAJUAN */
+
+.sort((a,b)=>b.pengajuan - a.pengajuan);
 
 /* =====================
 DEALER RANKING
@@ -345,16 +383,38 @@ DEALER RANKING
 
 const dealerRank = tokos.map(t=>{
 
-const closing = filteredData.filter(
-d=>d.toko===t.nama_toko && d.status==="Closing"
+const dataDealer = filteredData.filter(
+d=>d.toko===t.nama_toko
+);
+
+const pengajuan = dataDealer.length;
+
+const pending = dataDealer.filter(
+d=>d.status==="Pending"
 ).length;
+
+const acc = dataDealer.filter(
+d=>d.status==="Closing" || d.status==="Clos"
+).length;
+
+const reject = dataDealer.filter(
+d=>d.status==="Reject"
+).length;
+
+const successRate = pengajuan
+? Math.round((acc/pengajuan)*100)
+:0;
 
 return{
 dealer:t.nama_toko,
-closing
+pengajuan,
+pending,
+acc,
+reject,
+successRate
 }
 
-}).sort((a,b)=>b.closing-a.closing);
+}).sort((a,b)=>b.pengajuan-a.pengajuan);
 
 /* =====================
 AI PREDIKSI
@@ -701,10 +761,28 @@ Ranking Promotor
 
 {promotorRank.map((p,i)=>(
 
-<div key={i} className="bg-white p-3 rounded shadow mb-2 flex justify-between">
+<div key={i} className="bg-white p-3 rounded shadow mb-2">
 
-<span>{i+1}. {p.promotor}</span>
-<b>{p.closing}</b>
+<div className="flex justify-between items-center">
+
+<span className="font-semibold">
+{i+1}. {p.promotor}
+</span>
+
+<span className="font-bold text-blue-600">
+ACC: {p.acc}
+</span>
+
+</div>
+
+<div className="text-xs mt-1 text-gray-600">
+
+Pengajuan: {p.pengajuan} | 
+Pending: {p.pending} | 
+Reject: {p.reject} | 
+Success: {p.successRate}%
+
+</div>
 
 </div>
 
@@ -726,10 +804,21 @@ Leaderboard Dealer
 
 {dealerRank.map((d,i)=>(
 
-<div key={i} className="bg-white p-3 rounded shadow mb-2 flex justify-between">
+<div key={i} className="bg-white p-3 rounded shadow mb-2">
 
-<span>{d.dealer}</span>
-<b>{d.closing}</b>
+<div className="flex justify-between font-semibold">
+
+<span>{i+1}. {d.dealer}</span>
+
+<span className="text-blue-600">ACC: {d.acc}</span>
+
+</div>
+
+<div className="text-xs text-gray-600 mt-1">
+
+Pengajuan: {d.pengajuan} | Pending: {d.pending} | Reject: {d.reject} | Success: {d.successRate}%
+
+</div>
 
 </div>
 
