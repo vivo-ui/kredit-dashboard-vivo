@@ -330,7 +330,7 @@ return new Date(`2026-${m1}-${d1}`).getTime() - new Date(`2026-${m2}-${d2}`).get
 PROMOTOR RANKING
 ===================== */
 
-const normalize = (text)=>
+const normalize = (text: any) =>
 (text || "").toString().trim().toLowerCase();
 
 const promotorRank = promotors
