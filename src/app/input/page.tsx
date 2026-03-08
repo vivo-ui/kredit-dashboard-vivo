@@ -275,7 +275,7 @@ onChange={(e)=>setStatus(e.target.value)}
 >
 
 <option value="Pending">Pending</option>
-<option value="Clossing">Clossing</option>
+<option value="Closing">Closing</option>
 <option value="Reject">Reject</option>
 
 </select>

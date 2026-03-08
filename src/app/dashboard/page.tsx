@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect,useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { supabase } from "../../lib/supabaseClient";
+
 
 import {
 PieChart,
@@ -103,13 +104,22 @@ PROGRESS HARI INI
 
 const today = new Date().toISOString().slice(0,10);
 
-const todayData = filteredData.filter(
-d=>d.tanggal===today
-);
+const todayData = data.filter(d=>{
+const tanggal = String(d.tanggal).slice(0,10);
+return tanggal === today;
+});
 
-const closing = todayData.filter(d=>d.status==="Closing").length;
-const pending = todayData.filter(d=>d.status==="Pending").length;
-const reject = todayData.filter(d=>d.status==="Reject").length;
+const closing = todayData.filter(d =>
+(d.status || "").toLowerCase().includes("clos")
+).length;
+
+const pending = todayData.filter(d =>
+(d.status || "").toLowerCase().includes("pend")
+).length;
+
+const reject = todayData.filter(d =>
+(d.status || "").toLowerCase().includes("rej")
+).length;
 
 const totalToday = todayData.length;
 
@@ -119,6 +129,7 @@ const progressData=[
 ];
 
 const COLORS=["#3b82f6","#e5e7eb"];
+
 
 /* =====================
 TARGET BULAN
@@ -459,6 +470,7 @@ saveAs(blob,"report_kredit_vivo.xlsx");
 UI
 ===================== */
 
+console.log("closing:", closing);
 return(
 
 <div className="max-w-md mx-auto bg-gray-100 min-h-screen pb-24">
