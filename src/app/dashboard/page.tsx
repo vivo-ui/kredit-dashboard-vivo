@@ -29,6 +29,7 @@ const [tokos,setTokos]=useState<any[]>([]);
 const [targets,setTargets]=useState<any[]>([]);
 
 const [monthFilter,setMonthFilter]=useState("");
+const [dateFilter,setDateFilter]=useState("");
 const [startDate,setStartDate]=useState("");
 const [endDate,setEndDate]=useState("");
 
@@ -79,11 +80,20 @@ FILTER BULAN
 
 const filteredData = data.filter(d=>{
 
-if(!monthFilter) return true;
+/* FILTER TANGGAL */
 
+if(dateFilter){
+return d.tanggal === dateFilter;
+}
+
+/* FILTER BULAN */
+
+if(monthFilter){
 const month = new Date(d.tanggal).getMonth()+1;
-
 return month === parseInt(monthFilter);
+}
+
+return true;
 
 });
 
@@ -293,10 +303,9 @@ return true;
 const grafikHarian = filteredGrafik
 .reduce((acc:any[],item:any)=>{
 
-const tanggal = new Date(item.tanggal).toLocaleDateString("id-ID",{
-day:"2-digit",
-month:"2-digit"
-});
+const tanggal = new Date(item.tanggal)
+.toISOString()
+.split("T")[0];
 
 const found = acc.find(d=>d.tanggal===tanggal);
 
@@ -312,15 +321,7 @@ total:1
 return acc;
 
 },[])
-.sort((a,b)=>{
-
-const [d1,m1]=a.tanggal.split("/")
-const [d2,m2]=b.tanggal.split("/")
-
-return new Date(`2026-${m1}-${d1}`).getTime() - new Date(`2026-${m2}-${d2}`).getTime()
-
-})
-
+.sort((a,b)=> new Date(a.tanggal).getTime() - new Date(b.tanggal).getTime());
 
 /* =====================
 /* =====================
@@ -482,7 +483,7 @@ className="h-20 w-auto object-contain"
 
 {/* FILTER */}
 
-<div className="flex gap-2 p-4">
+<div className="flex gap-2 p-4 flex-wrap">
 
 <select
 className="border p-2 rounded"
@@ -505,6 +506,20 @@ onChange={(e)=>setMonthFilter(e.target.value)}
 <option value="12">Des</option>
 
 </select>
+
+<input
+type="date"
+value={dateFilter}
+onChange={(e)=>setDateFilter(e.target.value)}
+className="border p-2 rounded"
+/>
+
+<button
+onClick={()=>setDateFilter("")}
+className="bg-gray-400 text-white px-3 rounded"
+>
+Reset
+</button>
 
 <button
 onClick={exportExcel}
