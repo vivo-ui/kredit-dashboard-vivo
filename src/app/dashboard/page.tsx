@@ -7,7 +7,13 @@ import {
 PieChart,
 Pie,
 Cell,
-ResponsiveContainer
+ResponsiveContainer,
+LineChart,
+Line,
+CartesianGrid,
+XAxis,
+YAxis,
+Tooltip
 } from "recharts";
 
 import * as XLSX from "xlsx";
@@ -23,6 +29,8 @@ const [tokos,setTokos]=useState<any[]>([]);
 const [targets,setTargets]=useState<any[]>([]);
 
 const [monthFilter,setMonthFilter]=useState("");
+const [startDate,setStartDate]=useState("");
+const [endDate,setEndDate]=useState("");
 
 useEffect(()=>{
 
@@ -264,6 +272,55 @@ percent
 };
 
 });
+
+/* =====================
+GRAFIK HARIAN
+===================== */
+
+const filteredGrafik = data.filter((item:any)=>{
+
+if(!startDate && !endDate) return true;
+
+const tgl = new Date(item.tanggal);
+
+if(startDate && new Date(startDate) > tgl) return false;
+if(endDate && new Date(endDate) < tgl) return false;
+
+return true;
+
+});
+
+const grafikHarian = filteredGrafik
+.reduce((acc:any[],item:any)=>{
+
+const tanggal = new Date(item.tanggal).toLocaleDateString("id-ID",{
+day:"2-digit",
+month:"2-digit"
+});
+
+const found = acc.find(d=>d.tanggal===tanggal);
+
+if(found){
+found.total +=1;
+}else{
+acc.push({
+tanggal,
+total:1
+});
+}
+
+return acc;
+
+},[])
+.sort((a,b)=>{
+
+const [d1,m1]=a.tanggal.split("/")
+const [d2,m2]=b.tanggal.split("/")
+
+return new Date(`2026-${m1}-${d1}`).getTime() - new Date(`2026-${m2}-${d2}`).getTime()
+
+})
+
 
 /* =====================
 PROMOTOR RANKING
@@ -557,6 +614,81 @@ Input {a.input} / Target {a.target}
 
 )}
 
+{/* GRAFIK */}
+
+{tab==="grafik" && (
+
+<div className="mx-4 mt-4 space-y-4">
+
+{/* FILTER TANGGAL */}
+
+<div className="bg-white p-4 rounded-xl shadow">
+
+<h3 className="font-semibold mb-3">
+Filter Tanggal
+</h3>
+
+<div className="flex gap-2">
+
+<input
+type="date"
+value={startDate}
+onChange={(e)=>setStartDate(e.target.value)}
+className="border rounded p-2 w-full"
+/>
+
+<input
+type="date"
+value={endDate}
+onChange={(e)=>setEndDate(e.target.value)}
+className="border rounded p-2 w-full"
+/>
+
+</div>
+
+</div>
+
+{/* GRAFIK */}
+
+<div className="bg-white p-4 rounded-xl shadow">
+
+<h3 className="font-semibold mb-3">
+Grafik Input Harian
+</h3>
+
+<div className="h-64">
+
+<ResponsiveContainer width="100%" height="100%">
+
+<LineChart data={grafikHarian}>
+
+<CartesianGrid strokeDasharray="3 3"/>
+
+<XAxis dataKey="tanggal"/>
+
+<YAxis/>
+
+<Tooltip/>
+
+<Line
+type="monotone"
+dataKey="total"
+stroke="#3b82f6"
+strokeWidth={3}
+/>
+
+</LineChart>
+
+</ResponsiveContainer>
+
+</div>
+
+</div>
+
+</div>
+
+)}
+
 {/* PROMOTOR */}
 
 {tab==="promotor" && (
@@ -638,6 +770,11 @@ Prediksi Closing Bulan Ini
 <button onClick={()=>setTab("dashboard")}>
 🏠
 <p className="text-xs">Dashboard</p>
+</button>
+
+<button onClick={()=>setTab("grafik")}>
+📊
+<p className="text-xs">Grafik</p>
 </button>
 
 <button onClick={()=>setTab("promotor")}>
