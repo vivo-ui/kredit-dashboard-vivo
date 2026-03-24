@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 
 /**
- * VAULT FIDELITY LANDING PAGE - FINAL V2
+ * VIVO FLORES KREDIT TRACKING LANDING PAGE
  * Features:
  * 1. Institutional "Monolith of Trust" Design
  * 2. Secure Access Initialization Portals
@@ -51,23 +51,23 @@ export default function LandingPage() {
         <section className="min-h-screen flex flex-col items-center justify-center pt-24 px-6 text-center">
           <div className="inline-flex items-center gap-2 bg-white/5 border border-white/10 px-4 py-2 rounded-full mb-8 backdrop-blur-md">
             <span className="w-2 h-2 bg-[#aec6ff] rounded-full animate-pulse"></span>
-            <span className="text-[10px] font-bold uppercase tracking-[0.3em] opacity-60">Architectural Ledger v2.1</span>
+            <span className="text-[10px] font-bold uppercase tracking-[0.3em] opacity-60">VIVO FLORES</span>
           </div>
           <h2 className="text-5xl md:text-8xl font-black tracking-tighter leading-[0.9] mb-8 max-w-4xl">
-            THE ARCHITECTURAL <span className="text-[#aec6ff]">TRUST.</span>
+            FOKUS UNTUK MENGEJAR <span className="text-[#aec6ff]">MIDDLE-HIGH.</span>
           </h2>
           <p className="text-sm md:text-lg opacity-40 max-w-2xl leading-relaxed mb-12 font-medium">
-            Institutional-grade asset management and credit portfolio tracking protected by zero-knowledge architecture and end-to-end ledger verification.
+            Optimalkan penggunaan kredit Vast Finance dengan sistem yang mampu mengukur performa tim, meningkatkan konversi, dan mendorong penjualan produk middle-high.
           </p>
           <div className="flex flex-col md:flex-row gap-4">
             <button 
               onClick={navigateToLogin}
               className="bg-[#aec6ff] text-[#0c1321] px-10 py-5 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] shadow-2xl shadow-[#aec6ff]/20 hover:scale-105 transition-all"
             >
-              Initialize Secure Access
+              Klik disini untuk log in
             </button>
             <button className="bg-white/5 border border-white/10 text-white px-10 py-5 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] hover:bg-white/10 transition-all">
-              Security Protocol Docs
+              Protocol Keamanan
             </button>
           </div>
         </section>
