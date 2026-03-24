@@ -30,7 +30,7 @@ export default function LandingPage() {
       <header className="fixed top-0 w-full z-50 bg-[#0c1321]/80 backdrop-blur-xl border-b border-white/5 px-8 md:px-16 py-6 flex justify-between items-center">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-[#aec6ff] rounded-xl flex items-center justify-center text-[#0c1321] font-black text-xl shadow-[0_0_20px_rgba(174,198,255,0.3)]">V</div>
-          <h1 className="text-xl font-bold tracking-tight uppercase">Vault Fidelity</h1>
+          <h1 className="text-xl font-bold tracking-tight uppercase">VIVO FLORES TRACKING KREDIT</h1>
         </div>
         <nav className="hidden md:flex items-center gap-8 text-[11px] font-bold uppercase tracking-[0.2em] opacity-60">
           <a href="#security" className="hover:text-[#aec6ff] transition-colors">Security</a>
