@@ -8,7 +8,7 @@ const manrope = Manrope({
 });
 
 export const metadata: Metadata = {
-  title: "Vault Fidelity | Secure Architectural Ledger",
+  title: "vivo Flores | Secure Architectural Ledger",
   description: "Institutional Asset Management and Credit Portfolio Ledger",
 };
 
