@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
@@ -83,6 +84,18 @@ export default function IntegratedDashboard() {
   const currentMonthStr = monthFilter 
     ? `2026-${monthFilter.padStart(2, '0')}` 
     : new Date().toISOString().slice(0, 7);
+
+  // ACCUMULATED TOTAL TARGET LOGIC
+  const globalTarget = useMemo(() => {
+    // Sum targets for all promoters for the selected month
+    return targets
+      .filter(t => t.bulan === currentMonthStr)
+      .reduce((sum, t) => sum + (t.target || 0), 0);
+  }, [targets, currentMonthStr]);
+
+  const globalProgress = globalTarget > 0 
+    ? Math.round((filteredData.length / globalTarget) * 100) 
+    : 0;
 
   // SATOR LOGIC
   const satorStats = useMemo(() => {
@@ -186,10 +199,10 @@ export default function IntegratedDashboard() {
                 <h2 className="text-6xl font-black tracking-tighter text-[#aec6ff] mb-6">{filteredData.length}</h2>
                 <div className="flex justify-between items-center mb-2">
                    <span className="text-[10px] font-black uppercase tracking-widest opacity-40">Pencapaian Terhadap Target</span>
-                   <span className="text-[10px] font-black text-[#aec6ff]">78%</span>
+                   <span className="text-[10px] font-black text-[#aec6ff]">{globalProgress}%</span>
                 </div>
                 <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
-                  <div className="h-full bg-[#aec6ff]" style={{width: '78%'}}></div>
+                  <div className="h-full bg-[#aec6ff]" style={{width: `${globalProgress}%`}}></div>
                 </div>
               </div>
 
