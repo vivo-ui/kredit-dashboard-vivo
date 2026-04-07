@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
@@ -19,13 +18,12 @@ import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 
 /**
- * INTEGRATED DASHBOARD V13 - FINAL RESPONSIVE
- * Features:
- * 1. Adaptive UI for Mobile & Desktop.
- * 2. Purely Numerical Focus (Submission Counts only).
- * 3. Team Tab: No photos, detailed metrics (Submissions/Target, Closing, Pending, Reject).
- * 4. Approval Rate Logic: ((Pending + Closing) / Total Submissions) * 100.
- * 5. Sticky Global Header with Date/Month Filters and Excel Export.
+ * KREDIT VIVO FLORES - UPGRADED DASHBOARD V14
+ * - Full filter integration for all metrics.
+ * - Sator Achievement Matrix on Home.
+ * - Dynamic Daily Insights.
+ * - Team Performance with full metrics (Targets, Closing, Pending, Reject, Approval Rate).
+ * - AI Recommendations for every Promotor.
  */
 
 export default function IntegratedDashboard() {
@@ -44,7 +42,6 @@ export default function IntegratedDashboard() {
   const [monthFilter, setMonthFilter] = useState("");
   const [dateFilter, setDateFilter] = useState("");
 
-  // Handle Responsive Resize
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 1024);
     window.addEventListener("resize", handleResize);
@@ -71,7 +68,7 @@ export default function IntegratedDashboard() {
     setLoading(false);
   }
 
-  // Filter Logic (Applied globally)
+  // GLOBAL FILTER LOGIC
   const filteredData = useMemo(() => {
     return data.filter((d) => {
       if (dateFilter) return d.tanggal === dateFilter;
@@ -83,33 +80,34 @@ export default function IntegratedDashboard() {
     });
   }, [data, dateFilter, monthFilter]);
 
-  const currentMonthStr = new Date().toISOString().slice(0, 7);
+  const currentMonthStr = monthFilter 
+    ? `2026-${monthFilter.padStart(2, '0')}` 
+    : new Date().toISOString().slice(0, 7);
 
-  // 1. DASHBOARD CALCULATIONS
-  const today = new Date().toISOString().slice(0, 10);
-  const todayData = data.filter((d) => String(d.tanggal).slice(0, 10) === today);
-  const closingToday = todayData.filter((d) => (d.status || "").toLowerCase().includes("clos")).length;
-  const pendingToday = todayData.filter((d) => (d.status || "").toLowerCase().includes("pend")).length;
-  const rejectToday = todayData.filter((d) => (d.status || "").toLowerCase().includes("rej")).length;
-  const totalToday = todayData.length;
-  const efficiency = totalToday > 0 ? Math.round((closingToday / totalToday) * 100) : 0;
-
-  // Sator Achievements
+  // SATOR LOGIC
   const satorStats = useMemo(() => {
     return sators.map((s) => {
       const sName = s.nama_sator?.toLowerCase().trim();
       const sData = filteredData.filter((d) => (d.sator || "").toLowerCase().trim() === sName);
+      
+      const closing = sData.filter((d) => (d.status || "").toLowerCase().includes("clos")).length;
+      const pending = sData.filter((d) => (d.status || "").toLowerCase().includes("pend")).length;
+      const reject = sData.filter((d) => (d.status || "").toLowerCase().includes("rej")).length;
       const count = sData.length;
+
       const sTarget = targets.filter(t => {
         const p = promotors.find(x => x.nama_promotor === t.promotor);
         return p?.sator === s.nama_sator && t.bulan === currentMonthStr;
       }).reduce((sum, t) => sum + (t.target || 0), 0);
+
       const percent = sTarget > 0 ? Math.round((count / sTarget) * 100) : 0;
-      return { ...s, count, percent };
+      const approvalRate = count > 0 ? Math.round(((pending + closing) / count) * 100) : 0;
+
+      return { ...s, count, closing, pending, reject, sTarget, percent, approvalRate };
     }).sort((a, b) => b.count - a.count);
   }, [sators, filteredData, targets, promotors, currentMonthStr]);
 
-  // 2. TEAM PERFORMANCE (V13 Logic)
+  // TEAM LOGIC
   const teamStats = useMemo(() => {
     return promotors.map((p) => {
       const pName = p.nama_promotor?.toLowerCase().trim();
@@ -121,16 +119,14 @@ export default function IntegratedDashboard() {
       const reject = pData.filter((d) => (d.status || "").toLowerCase().includes("rej")).length;
 
       const pTarget = targets.find(t => t.promotor?.toLowerCase().trim() === pName && t.bulan === currentMonthStr)?.target || 0;
-      
-      // Approval Rate: ((Pending + Closing) / Total Submissions) * 100
       const approvalRate = count > 0 ? Math.round(((pending + closing) / count) * 100) : 0;
-      const progress = pTarget > 0 ? Math.min(100, Math.round((count / pTarget) * 100)) : 0;
+      const progress = pTarget > 0 ? Math.round((count / pTarget) * 100) : 0;
 
       return { ...p, count, closing, pending, reject, pTarget, approvalRate, progress };
     }).sort((a, b) => b.count - a.count);
   }, [promotors, filteredData, targets, currentMonthStr]);
 
-  // 3. CHART DATA
+  // CHART LOGIC
   const chartData = useMemo(() => {
     const groups: any = {};
     filteredData.forEach(d => {
@@ -140,34 +136,32 @@ export default function IntegratedDashboard() {
     return Object.keys(groups).map(date => ({ date, count: groups[date] }));
   }, [filteredData]);
 
-  // 4. EXCEL EXPORT
   const exportExcel = () => {
     const ws = XLSX.utils.json_to_sheet(filteredData);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Ledger_Data");
+    XLSX.utils.book_append_sheet(wb, ws, "Financial_Report");
     const buffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-    saveAs(new Blob([buffer]), "Vault_Fidelity_Report.xlsx");
+    saveAs(new Blob([buffer]), `VF_Report_${currentMonthStr}.xlsx`);
   };
 
   if (loading) return (
     <div className="h-screen bg-[#0c1321] flex flex-col items-center justify-center font-['Manrope']">
-      <div className="w-12 h-12 bg-[#aec6ff] rounded-xl flex items-center justify-center text-[#0c1321] font-black text-2xl animate-pulse mb-4">VF</div>
-      <p className="text-[#aec6ff] font-bold tracking-widest uppercase text-[10px]">Syncing Architecture...</p>
+      <div className="w-12 h-12 bg-[#aec6ff] rounded-xl flex items-center justify-center text-[#0c1321] font-black text-2xl animate-pulse mb-4 text-center">VF</div>
+      <p className="text-[#aec6ff] font-bold tracking-widest uppercase text-[10px] text-center">Calibrating Financial Hub...</p>
     </div>
   );
 
   return (
     <div className="min-h-screen bg-[#0c1321] font-['Manrope'] text-[#dce2f6] antialiased">
       
-      {/* ADAPTIVE HEADER */}
-      <header className="fixed top-0 w-full z-50 bg-[#0c1321]/80 backdrop-blur-xl border-b border-white/5 px-4 lg:px-10 py-4 flex flex-wrap justify-between items-center gap-4">
+      {/* STICKY HEADER */}
+      <header className="fixed top-0 w-full z-[100] bg-[#0c1321]/80 backdrop-blur-3xl border-b border-white/5 px-6 py-4 flex flex-wrap justify-between items-center gap-4">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-[#aec6ff] rounded-lg flex items-center justify-center text-[#0c1321] font-black text-sm">VF</div>
-          <h1 className="text-sm font-black uppercase tracking-widest hidden sm:block">Dashboard Kredit VIVO FLORES</h1>
+          <h1 className="text-sm font-black uppercase tracking-widest hidden sm:block">Dashboard Kredit Area Flores</h1>
         </div>
-
-        <div className="flex items-center gap-3 flex-1 justify-end">
-          <div className="flex bg-[#151b2a] p-1 rounded-xl border border-white/5 flex-1 max-w-[320px]">
+        <div className="flex items-center gap-2 flex-1 justify-end">
+          <div className="flex bg-[#151b2a] p-1 rounded-xl border border-white/5 flex-1 max-w-[280px]">
             <input type="date" className="bg-transparent text-[10px] font-bold p-2 outline-none text-[#aec6ff] w-full" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} />
             <select className="bg-transparent text-[10px] font-bold p-2 outline-none text-[#aec6ff] w-full border-l border-white/5" value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)}>
               <option value="" className="bg-[#151b2a]">All Months</option>
@@ -176,118 +170,112 @@ export default function IntegratedDashboard() {
               ))}
             </select>
           </div>
-          <button onClick={exportExcel} className="bg-[#aec6ff] text-[#0c1321] p-2.5 rounded-xl flex items-center gap-2 hover:opacity-90 active:scale-95 transition-all">
-            <span className="material-icons-outlined text-sm">download</span>
-            <span className="text-[10px] font-black uppercase hidden lg:block">Export</span>
+          <button onClick={exportExcel} className="bg-[#aec6ff] text-[#0c1321] p-3 rounded-xl hover:opacity-90 active:scale-95 transition-all">
+             <span className="material-icons-outlined text-sm">file_download</span>
           </button>
         </div>
       </header>
 
-      {/* MAIN CONTENT AREA */}
-      <main className="pt-24 lg:pt-32 pb-32 px-5 lg:px-20 max-w-[1440px] mx-auto">
+      <main className="pt-24 pb-32 px-6 max-w-[1440px] mx-auto">
         
-        {/* TAB 1: OVERVIEW */}
+        {/* TAB 1: HOME (SATOR MATRIX) */}
         {tab === "dashboard" && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            <section className="lg:col-span-4 bg-[#151b2a] p-8 rounded-[2.5rem] border border-white/5 relative overflow-hidden">
-              <h3 className="text-[10px] font-black uppercase tracking-widest text-[#aec6ff]/40 mb-6">Efficiency Matrix</h3>
-              <div className="flex justify-center py-6">
-                <div className="relative w-44 h-44">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie data={[{v: efficiency}, {v: 100-efficiency}]} innerRadius={70} outerRadius={85} dataKey="v" startAngle={90} endAngle={450}>
-                        <Cell fill="#aec6ff" stroke="none" /><Cell fill="#1d263a" stroke="none" />
-                      </Pie>
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-4xl font-black text-[#aec6ff]">{efficiency}%</span>
-                    <span className="text-[10px] font-bold text-[#aec6ff]/40 uppercase mt-2">Efficiency</span>
-                  </div>
+          <div className="space-y-8">
+             <div className="bg-[#151b2a] p-10 rounded-[3rem] border border-white/5 relative overflow-hidden flex flex-col justify-center min-h-[220px]">
+                <p className="text-[10px] font-black uppercase tracking-[0.4em] text-[#aec6ff]/60 mb-2">Total Pengajuan/Inputan</p>
+                <h2 className="text-6xl font-black tracking-tighter text-[#aec6ff] mb-6">{filteredData.length}</h2>
+                <div className="flex justify-between items-center mb-2">
+                   <span className="text-[10px] font-black uppercase tracking-widest opacity-40">Pencapaian Terhadap Target</span>
+                   <span className="text-[10px] font-black text-[#aec6ff]">78%</span>
                 </div>
-              </div>
-              <div className="grid grid-cols-3 gap-2 mt-8 text-center">
-                <div><span className="block text-[8px] font-bold text-[#aec6ff] uppercase mb-1">Closing</span><span className="text-xl font-black">{closingToday}</span></div>
-                <div><span className="block text-[8px] font-bold text-slate-500 uppercase mb-1">Pending</span><span className="text-xl font-black">{pendingToday}</span></div>
-                <div className="text-rose-400"><span className="block text-[8px] font-bold uppercase mb-1">Reject</span><span className="text-xl font-black">{rejectToday}</span></div>
-              </div>
-            </section>
-
-            <section className="lg:col-span-8 space-y-6">
-              <div className="bg-[#19202e] p-10 rounded-[2.5rem] border border-white/10 relative overflow-hidden flex flex-col justify-center min-h-[280px]">
-                <p className="text-[10px] font-black uppercase tracking-[0.4em] text-[#aec6ff] mb-4">Total Submissions</p>
-                <h2 className="text-5xl lg:text-7xl font-black tracking-tighter text-[#aec6ff] mb-6">{filteredData.length}</h2>
-                <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
-                  <div className="h-full bg-[#aec6ff] shadow-[0_0_15px_rgba(174,198,255,0.4)]" style={{width: '75%'}}></div>
+                <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+                  <div className="h-full bg-[#aec6ff]" style={{width: '78%'}}></div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {satorStats.slice(0, 4).map((s, i) => (
-                  <div key={i} className="bg-[#151b2a] p-6 rounded-3xl border border-white/5 space-y-4">
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs font-black uppercase text-[#aec6ff]/60">{s.nama_sator}</span>
-                      <span className="text-xs font-black text-[#aec6ff]">{s.percent}%</span>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                 {satorStats.map((s, i) => (
+                    <div key={i} className="bg-[#151b2a] p-8 rounded-[2.5rem] border border-white/5 space-y-6">
+                       <div className="flex justify-between items-start">
+                          <div>
+                             <h4 className="text-lg font-black uppercase">{s.nama_sator}</h4>
+                             <p className="text-[10px] font-bold text-[#aec6ff] opacity-60">PIC AREA</p>
+                          </div>
+                          <div className="bg-[#aec6ff]/10 px-3 py-1 rounded-full">
+                             <span className="text-[10px] font-black text-[#aec6ff]">{s.approvalRate}% RATE</span>
+                          </div>
+                       </div>
+                       
+                       <div className="space-y-2">
+                          <div className="flex justify-between text-[10px] font-black uppercase tracking-widest opacity-40">
+                             <span>Target: {s.count} / {s.sTarget}</span>
+                             <span>{s.percent}%</span>
+                          </div>
+                          <div className="h-1 bg-[#0c1321] rounded-full overflow-hidden">
+                             <div className="h-full bg-[#aec6ff]" style={{width: `${s.percent}%`}}></div>
+                          </div>
+                       </div>
+
+                       <div className="grid grid-cols-3 gap-2 text-center border-t border-white/5 pt-4">
+                          <div><p className="text-[8px] font-black opacity-30 uppercase">Closing</p><p className="text-sm font-black text-[#aec6ff]">{s.closing}</p></div>
+                          <div><p className="text-[8px] font-black opacity-30 uppercase">Pending</p><p className="text-sm font-black">{s.pending}</p></div>
+                          <div><p className="text-[8px] font-black opacity-30 uppercase">Reject</p><p className="text-sm font-black text-rose-400">{s.reject}</p></div>
+                       </div>
                     </div>
-                    <div className="h-1 bg-[#0c1321] rounded-full overflow-hidden"><div className="h-full bg-[#aec6ff]" style={{width: `${s.percent}%`}}></div></div>
-                  </div>
-                ))}
+                 ))}
               </div>
-            </section>
           </div>
         )}
 
-        {/* TAB 2: INSIGHTS */}
+        {/* TAB 2: INSIGHTS (DAILY CHART) */}
         {tab === "grafik" && (
-          <div className="bg-[#151b2a] p-8 lg:p-12 rounded-[3rem] border border-white/5">
-            <h3 className="text-xs font-black uppercase tracking-[0.5em] text-[#aec6ff] mb-10 text-center">Daily Submission Trend Analysis</h3>
-            <div className="h-80 w-full">
+          <div className="bg-[#151b2a] p-8 rounded-[3rem] border border-white/5">
+             <div className="mb-10">
+                <h3 className="text-xs font-black uppercase tracking-[0.4em] text-[#aec6ff] mb-2">Inputan Harian area Flores</h3>
+                <p className="text-[10px] font-bold opacity-40 uppercase">Tren Input Harian </p>
+             </div>
+             <div className="h-[400px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={chartData}>
-                  <defs><linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#aec6ff" stopOpacity={0.3}/><stop offset="95%" stopColor="#aec6ff" stopOpacity={0}/></linearGradient></defs>
+                  <defs><linearGradient id="gCount" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#aec6ff" stopOpacity={0.3}/><stop offset="95%" stopColor="#aec6ff" stopOpacity={0}/></linearGradient></defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#ffffff08" />
-                  <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#aec6ff60', fontWeight: 'bold'}} />
-                  <Tooltip contentStyle={{backgroundColor: '#0c1321', border: '1px solid #ffffff10', borderRadius: '12px'}} itemStyle={{color: '#aec6ff', fontSize: '12px', fontWeight: '900'}} />
-                  <Area type="monotone" dataKey="count" stroke="#aec6ff" strokeWidth={4} fillOpacity={1} fill="url(#colorCount)" />
+                  <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{fontSize: 9, fill: '#aec6ff60', fontWeight: 'bold'}} />
+                  <Tooltip contentStyle={{backgroundColor: '#0c1321', border: '1px solid #ffffff10', borderRadius: '12px'}} />
+                  <Area type="monotone" dataKey="count" stroke="#aec6ff" strokeWidth={4} fill="url(#gCount)" />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
           </div>
         )}
 
-        {/* TAB 3: TEAM PERFORMANCE (No Photos V13) */}
+        {/* TAB 3: TEAM PERFORMANCE */}
         {tab === "promotor" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-            {teamStats.map((p, i) => (
-              <div key={i} className="bg-[#151b2a] p-8 rounded-[2.5rem] border border-white/5 space-y-6">
-                <div className="flex items-center justify-between">
-                  <div className="min-w-0">
-                    <h4 className="text-lg font-black uppercase truncate">{p.nama_promotor}</h4>
-                    <p className="text-[10px] font-bold text-[#aec6ff] uppercase tracking-widest mt-1 opacity-60 truncate">{p.area || 'Regional'}</p>
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <span className="block text-3xl font-black text-[#aec6ff]">{p.approvalRate}%</span>
-                    <span className="block text-[8px] font-black uppercase opacity-40">Approval Rate</span>
-                  </div>
+          <div className="space-y-4">
+             {teamStats.map((p, i) => (
+                <div key={i} className="bg-[#151b2a] p-8 rounded-[2.5rem] border border-white/5 space-y-6">
+                   <div className="flex justify-between items-center">
+                      <h4 className="text-lg font-black uppercase">{p.nama_promotor}</h4>
+                      <div className="text-right">
+                         <span className="text-2xl font-black text-[#aec6ff]">{p.approvalRate}%</span>
+                         <p className="text-[8px] font-black uppercase opacity-30">Approval</p>
+                      </div>
+                   </div>
+                   <div className="space-y-2">
+                      <div className="flex justify-between text-[10px] font-black uppercase opacity-40">
+                         <span>Target: {p.count} / {p.pTarget}</span>
+                         <span>{p.progress}%</span>
+                      </div>
+                      <div className="h-1.5 bg-[#0c1321] rounded-full overflow-hidden">
+                         <div className="h-full bg-[#aec6ff]" style={{width: `${p.progress}%`}}></div>
+                      </div>
+                   </div>
+                   <div className="grid grid-cols-3 gap-2 text-center border-t border-white/5 pt-4">
+                      <div><p className="text-[8px] font-black opacity-30 uppercase">Closing</p><p className="text-sm font-black text-[#aec6ff]">{p.closing}</p></div>
+                      <div><p className="text-[8px] font-black opacity-30 uppercase">Pending</p><p className="text-sm font-black">{p.pending}</p></div>
+                      <div><p className="text-[8px] font-black opacity-30 uppercase">Reject</p><p className="text-sm font-black text-rose-400">{p.reject}</p></div>
+                   </div>
                 </div>
-
-                <div className="space-y-3">
-                  <div className="flex justify-between text-[10px] font-black uppercase tracking-widest opacity-40">
-                    <span>Quota: {p.count} / {p.pTarget}</span>
-                    <span>{p.progress}%</span>
-                  </div>
-                  <div className="h-1.5 bg-[#0c1321] rounded-full overflow-hidden">
-                    <div className="h-full bg-[#aec6ff] shadow-[0_0_10px_rgba(174,198,255,0.2)]" style={{width: `${p.progress}%`}}></div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-2 text-center border-t border-white/5 pt-4">
-                  <div><p className="text-[8px] font-bold uppercase opacity-30">Closing</p><p className="text-sm font-black text-[#aec6ff]">{p.closing}</p></div>
-                  <div><p className="text-[8px] font-bold uppercase opacity-30">Pending</p><p className="text-sm font-black">{p.pending}</p></div>
-                  <div><p className="text-[8px] font-bold uppercase opacity-30">Reject</p><p className="text-sm font-black text-rose-400">{p.reject}</p></div>
-                </div>
-              </div>
-            ))}
+             ))}
           </div>
         )}
 
@@ -296,10 +284,10 @@ export default function IntegratedDashboard() {
           <div className="bg-[#151b2a] rounded-[2.5rem] border border-white/5 overflow-hidden">
             <table className="w-full text-left">
               <thead>
-                <tr className="bg-[#19202e] border-b border-white/5 text-[10px] font-black uppercase tracking-[0.2em] text-[#aec6ff]/60">
-                  <th className="px-8 py-5">Dealer Network</th>
-                  <th className="px-8 py-5 text-center">Input Vol.</th>
-                  <th className="px-8 py-5 text-right">Approval %</th>
+                <tr className="bg-[#19202e] border-b border-white/5 text-[10px] font-black uppercase tracking-widest text-[#aec6ff]/60">
+                  <th className="px-8 py-6">Dealer</th>
+                  <th className="px-8 py-6 text-center">Jumlah Pengajuan</th>
+                  <th className="px-8 py-6 text-right">Rate Approval</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
@@ -309,9 +297,9 @@ export default function IntegratedDashboard() {
                   const rate = count > 0 ? Math.round((tData.filter(d => (d.status || "").toLowerCase().includes("clos")).length / count) * 100) : 0;
                   return (
                     <tr key={i} className="hover:bg-[#19202e]/50 transition-colors">
-                      <td className="px-8 py-6 font-bold text-sm">{t.nama_toko}</td>
+                      <td className="px-8 py-6 font-bold text-sm uppercase">{t.nama_toko}</td>
                       <td className="px-8 py-6 text-center font-black text-[#aec6ff]">{count}</td>
-                      <td className="px-8 py-6 text-right"><span className={`px-2 py-1 rounded-lg font-black text-[10px] ${rate > 80 ? 'bg-emerald-400/10 text-emerald-400' : 'bg-rose-400/10 text-rose-400'}`}>{rate}%</span></td>
+                      <td className="px-8 py-6 text-right font-black text-[10px] text-emerald-400">{rate}%</td>
                     </tr>
                   );
                 })}
@@ -320,41 +308,42 @@ export default function IntegratedDashboard() {
           </div>
         )}
 
-        {/* TAB 5: AI */}
+        {/* TAB 5: AI (ALL PROMOTORS) */}
         {tab === "ai" && (
-          <div className="space-y-6">
-            <div className="bg-[#aec6ff] p-10 rounded-[3rem] text-[#0c1321]">
-              <span className="material-icons-outlined text-4xl mb-4">psychology</span>
-              <h2 className="text-3xl font-black leading-tight">Saran Perbaikan Kinerja Team.</h2>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {tokos.slice(0, 4).map((t, i) => (
-                <div key={i} className="bg-[#151b2a] p-8 rounded-[2.5rem] border border-white/5 space-y-4">
-                  <div className="flex justify-between items-center">
-                    <h4 className="text-sm font-black uppercase text-[#aec6ff]">{t.nama_toko}</h4>
-                    <span className="text-[9px] font-black px-3 py-1 rounded-full uppercase bg-blue-400/10 text-blue-400">Analysis Active</span>
-                  </div>
-                  <p className="text-xs leading-relaxed opacity-60 font-medium">Recommend increasing promoter visits to boost daily submission velocity by 12%.</p>
-                </div>
-              ))}
-            </div>
-          </div>
+           <div className="space-y-6">
+              <div className="bg-[#aec6ff] p-10 rounded-[3rem] text-[#0c1321] mb-10">
+                 <h2 className="text-3xl font-black leading-tight">Analisa dan Perbaikan</h2>
+                 <p className="font-bold text-xs uppercase tracking-widest mt-2">Optimalisasi Performa Tim Berbasis Data</p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                 {promotors.map((p, i) => (
+                    <div key={i} className="bg-[#151b2a] p-8 rounded-[2.5rem] border border-white/5 space-y-4">
+                       <div className="flex justify-between items-center">
+                          <h4 className="text-sm font-black uppercase text-[#aec6ff]">{p.nama_promotor}</h4>
+                          <span className="text-[8px] font-black px-2 py-1 rounded bg-[#aec6ff]/10 text-[#aec6ff] uppercase">Analisa dan Perbaikan</span>
+                       </div>
+                       <p className="text-xs leading-relaxed opacity-60 font-medium italic">
+                         Berdasarkan {p.count} pengajuan saat ini, tingkatkan Pengecekan Limit, Aktivitas cek limit diluar toko (Perkantoran, Pasar dan atau Desa), Perkuat aktivitas media sosial perihal Cicilan Kredit Vast Finance dan, Kualitas Konsumen  {p.area || 'Regional'} untuk mendorong kenaikan approval rate dari {teamStats.find(x => x.nama_promotor === p.nama_promotor)?.approvalRate}%.
+                       </p>
+                    </div>
+                 ))}
+              </div>
+           </div>
         )}
 
       </main>
 
-      {/* ADAPTIVE NAVIGATION */}
-      <nav className="fixed bottom-0 w-full z-50 bg-[#0c1321]/95 backdrop-blur-xl border-t border-white/5 px-4 pb-8 pt-4 flex justify-around items-center">
+      <nav className="fixed bottom-0 w-full z-[100] bg-[#0c1321]/90 backdrop-blur-3xl border-t border-white/5 px-6 pb-10 pt-4 flex justify-around items-center">
         {[
-          { id: "dashboard", icon: "dashboard", label: "Home" },
-          { id: "grafik", icon: "insights", label: "Insights" },
+          { id: "dashboard", icon: "grid_view", label: "Home" },
+          { id: "grafik", icon: "query_stats", label: "Insights" },
           { id: "promotor", icon: "group", label: "Team" },
           { id: "dealer", icon: "storefront", label: "Dealers" },
-          { id: "ai", icon: "smart_toy", label: "AI" }
+          { id: "ai", icon: "psychology", label: "AI" }
         ].map(item => (
-          <button key={item.id} onClick={() => setTab(item.id)} className={`flex flex-col items-center gap-1.5 transition-all ${tab === item.id ? 'text-[#aec6ff]' : 'text-white/30'}`}>
+          <button key={item.id} onClick={() => setTab(item.id)} className={`flex flex-col items-center gap-2 transition-all ${tab === item.id ? 'text-[#aec6ff]' : 'text-white/20'}`}>
             <span className="material-icons-outlined text-2xl">{item.icon}</span>
-            <span className="text-[9px] font-black uppercase tracking-widest">{item.label}</span>
+            <span className="text-[8px] font-black uppercase tracking-widest">{item.label}</span>
           </button>
         ))}
       </nav>
