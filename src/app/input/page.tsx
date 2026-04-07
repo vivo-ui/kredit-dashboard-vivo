@@ -1,5 +1,4 @@
 "use client";
-
 import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 
@@ -21,7 +20,9 @@ export default function InputKreditPage() {
     harga_hp: "",
     leasing: "",
     limit_kredit: "",
-    status: "Pending" // Default status
+    status: "Pending", // Default status 
+    alasan_pending: "",
+    keterangan_reject: ""
   });
 
   // Master Data States
@@ -57,7 +58,7 @@ export default function InputKreditPage() {
     setErrorMsg("");
     setSuccessMsg("");
 
-    // VALIDASI: Tanggal, Sator, Toko, Promotor, Konsumen wajib (Limit Kredit TIDAK WAJIB)
+    // VALIDASI: Tanggal, Sator, Toko, Promotor, Konsumen wajib
     if (
       !formData.tanggal || 
       !formData.sator || 
@@ -71,7 +72,7 @@ export default function InputKreditPage() {
 
     setLoading(true);
 
-    // Persiapan data untuk insert (konversi tipe data jika perlu)
+    // Persiapan data untuk insert
     const payload = {
       tanggal: formData.tanggal,
       sator: formData.sator,
@@ -84,7 +85,9 @@ export default function InputKreditPage() {
       harga_hp: formData.harga_hp ? parseInt(formData.harga_hp.toString()) : 0,
       leasing: formData.leasing,
       limit_kredit: formData.limit_kredit ? parseInt(formData.limit_kredit.toString()) : 0,
-      status: formData.status
+      status: formData.status,
+      alasan_pending: formData.status === 'Pending' ? formData.alasan_pending : null,
+      keterangan_reject: formData.status === 'Reject' ? formData.keterangan_reject : null
     };
 
     const { error } = await supabase
@@ -108,7 +111,9 @@ export default function InputKreditPage() {
         harga_hp: "",
         leasing: "",
         limit_kredit: "",
-        status: "Pending"
+        status: "Pending",
+        alasan_pending: "",
+        keterangan_reject: ""
       }));
     }
   };
@@ -159,7 +164,6 @@ export default function InputKreditPage() {
               onChange={(e) => setFormData({...formData, tanggal: e.target.value})}
             />
           </div>
-
           <div>
             <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase">SATOR *</label>
             <select 
@@ -171,7 +175,6 @@ export default function InputKreditPage() {
               {sators.map(s => <option key={s.id} value={s.nama_sator}>{s.nama_sator}</option>)}
             </select>
           </div>
-
           <div>
             <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase">Toko *</label>
             <select 
@@ -184,7 +187,6 @@ export default function InputKreditPage() {
               {tokos.map(t => <option key={t.id} value={t.nama_toko}>{t.nama_toko}</option>)}
             </select>
           </div>
-
           <div>
             <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase">Promotor *</label>
             <select 
@@ -293,6 +295,38 @@ export default function InputKreditPage() {
               <option value="Reject">Reject</option>
             </select>
           </div>
+
+          {/* Conditional Rendering: Alasan Pending */}
+          {formData.status === 'Pending' && (
+            <div className="animate-in fade-in slide-in-from-top-1">
+              <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase">Alasan Pending</label>
+              <select 
+                className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-[#002F6C] focus:bg-white outline-none transition-all appearance-none"
+                value={formData.alasan_pending}
+                onChange={(e) => setFormData({...formData, alasan_pending: e.target.value})}
+              >
+                <option value="">Pilih Alasan Pending</option>
+                <option value="Stock belum ada">Stock belum ada</option>
+                <option value="DP diatas 400k">DP diatas 400k</option>
+                <option value="DP diatas 500k">DP diatas 500k</option>
+                <option value="DP diatas 600k">DP diatas 600k</option>
+                <option value="DP >800k">DP &gt;800k</option>
+              </select>
+            </div>
+          )}
+
+          {/* Conditional Rendering: Keterangan Reject */}
+          {formData.status === 'Reject' && (
+            <div className="animate-in fade-in slide-in-from-top-1">
+              <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase">Keterangan Reject</label>
+              <textarea 
+                placeholder="Isi keterangan reject manual..." 
+                className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-[#002F6C] focus:bg-white outline-none transition-all min-h-[100px]"
+                value={formData.keterangan_reject}
+                onChange={(e) => setFormData({...formData, keterangan_reject: e.target.value})}
+              />
+            </div>
+          )}
         </section>
       </div>
 
