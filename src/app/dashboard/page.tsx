@@ -76,7 +76,21 @@ export default function IntegratedDashboard() {
         tk = tkAlt;
       }
 
-      setData(kd || []);
+      // Create a map for faster lookup
+      const promotorMap = new Map();
+      (pr || []).forEach(p => promotorMap.set(normalize(p.nama_promotor), p));
+
+      // Enrich data with area and sator from promotors if missing
+      const enrichedKd = (kd || []).map(d => {
+        const p = promotorMap.get(normalize(d.promotor));
+        return { 
+          ...d, 
+          area: p?.area || d.area || "",
+          sator: p?.sator || d.sator || "" 
+        };
+      });
+
+      setData(enrichedKd);
       setPromotors(pr || []);
       setTokos(tk || []);
       setTargets(tg || []);
