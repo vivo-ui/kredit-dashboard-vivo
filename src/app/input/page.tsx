@@ -274,7 +274,7 @@ export default function InputKreditPage() {
                 <option value="Yess kredit">Yess kredit</option>
                 <option value="HCI">HCI</option>
                 <option value="Spektra">Spektra</option>
-                <option value="Indonana">Indonana</option>
+                <option value="Indodana">Indodana</option>
                 <option value="Laku6">Laku6</option>
               </select>
             </div>
