@@ -263,12 +263,20 @@ export default function InputKreditPage() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase">Leasing</label>
-              <input 
-                placeholder="KREDIVO / VAST FINANCE" 
-                className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-[#002F6C] focus:bg-white outline-none transition-all"
+              <select 
+                className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-[#002F6C] focus:bg-white outline-none transition-all appearance-none"
                 value={formData.leasing}
                 onChange={(e) => setFormData({...formData, leasing: e.target.value})}
-              />
+              >
+                <option value="">Pilih Leasing</option>
+                <option value="Vast finance">Vast finance</option>
+                <option value="Kredivo">Kredivo</option>
+                <option value="Yess kredit">Yess kredit</option>
+                <option value="HCI">HCI</option>
+                <option value="Spektra">Spektra</option>
+                <option value="Indonana">Indonana</option>
+                <option value="Laku6">Laku6</option>
+              </select>
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase">Limit Kredit</label>

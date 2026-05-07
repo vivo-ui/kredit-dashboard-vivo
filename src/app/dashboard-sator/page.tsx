@@ -84,7 +84,20 @@ export default function SatorDashboard() {
 
     const normSator = normalize(satorName);
 
-    const picData = (kd || []).filter(d => normalize(d.sator).includes(normSator));
+    // PROACTIVE ENRICHMENT (Consistency Fix)
+    const promotorMap = new Map();
+    (pr || []).forEach(p => promotorMap.set(normalize(p.nama_promotor), p));
+
+    const enrichedKd = (kd || []).map(d => {
+      const p = promotorMap.get(normalize(d.promotor));
+      return { 
+        ...d, 
+        area: p?.area || d.area || "",
+        sator: p?.sator || d.sator || "" 
+      };
+    });
+
+    const picData = enrichedKd.filter(d => normalize(d.sator).includes(normSator));
     const picPromotors = (pr || []).filter(p => normalize(p.sator).includes(normSator));
     const picTokos = (tk || []).filter(t => normalize(t.sator).includes(normSator));
 
@@ -120,17 +133,14 @@ export default function SatorDashboard() {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   }, [monthFilter]);
 
-  // 1. CALCULATIONS
-  const now = new Date();
-  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-  const todayData = filteredData.filter((d) => String(d.tanggal).slice(0, 10) === today);
-  const closingToday = todayData.filter((d) => (d.status || "").toLowerCase().includes("clos")).length;
-  const pendingToday = todayData.filter((d) => (d.status || "").toLowerCase().includes("pend")).length;
-  const rejectToday = todayData.filter((d) => (d.status || "").toLowerCase().includes("rej")).length;
-  const totalToday = todayData.length;
+  // 1. CALCULATIONS (Respecting Filters)
+  const filteredClosing = filteredData.filter((d) => (d.status || "").toLowerCase().includes("clos")).length;
+  const filteredPending = filteredData.filter((d) => (d.status || "").toLowerCase().includes("pend")).length;
+  const filteredReject = filteredData.filter((d) => (d.status || "").toLowerCase().includes("rej")).length;
+  const filteredTotal = filteredData.length;
   
   // Overall ACC Rate includes Closing + Pending
-  const efficiency = totalToday > 0 ? Math.round(((closingToday + pendingToday) / totalToday) * 100) : 0;
+  const efficiency = filteredTotal > 0 ? Math.round(((filteredClosing + filteredPending) / filteredTotal) * 100) : 0;
 
   const picTarget = useMemo(() => {
     return targets
@@ -299,18 +309,22 @@ export default function SatorDashboard() {
                   </div>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-3 mt-10">
+              <div className="grid grid-cols-2 gap-3 mt-10">
                 <div className="bg-[#0c1321] p-4 rounded-2xl text-center border border-white/5">
                    <span className="block text-[9px] font-black text-white/20 uppercase mb-1">ACC</span>
-                   <span className="block text-xl font-black text-[#aec6ff]">{closingToday + pendingToday}</span>
+                   <span className="block text-xl font-black text-[#aec6ff]">{filteredClosing}</span>
+                </div>
+                <div className="bg-[#0c1321] p-4 rounded-2xl text-center border border-white/5">
+                   <span className="block text-[9px] font-black text-white/20 uppercase mb-1">PEND</span>
+                   <span className="block text-xl font-black text-amber-500">{filteredPending}</span>
                 </div>
                 <div className="bg-[#0c1321] p-4 rounded-2xl text-center border border-white/5">
                    <span className="block text-[9px] font-black text-white/20 uppercase mb-1">REJ</span>
-                   <span className="block text-xl font-black text-rose-500">{rejectToday}</span>
+                   <span className="block text-xl font-black text-rose-500">{filteredReject}</span>
                 </div>
                 <div className="bg-[#aec6ff] p-4 rounded-2xl text-center text-[#0c1321] shadow-lg shadow-[#aec6ff]/10">
                    <span className="block text-[9px] font-black opacity-50 uppercase mb-1">Total</span>
-                   <span className="block text-xl font-black">{totalToday}</span>
+                   <span className="block text-xl font-black">{filteredTotal}</span>
                 </div>
               </div>
             </section>
