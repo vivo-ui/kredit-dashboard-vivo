@@ -116,11 +116,13 @@ export default function SatorDashboard() {
 
   const currentMonthStr = useMemo(() => {
     if (monthFilter) return monthFilter;
-    return new Date().toISOString().slice(0, 7);
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   }, [monthFilter]);
 
   // 1. CALCULATIONS
-  const today = new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   const todayData = filteredData.filter((d) => String(d.tanggal).slice(0, 10) === today);
   const closingToday = todayData.filter((d) => (d.status || "").toLowerCase().includes("clos")).length;
   const pendingToday = todayData.filter((d) => (d.status || "").toLowerCase().includes("pend")).length;

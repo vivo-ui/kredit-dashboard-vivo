@@ -102,7 +102,8 @@ export default function IntegratedDashboard() {
   // Sync Month String with Filter or Current Date
   const currentMonthStr = useMemo(() => {
     if (monthFilter) return monthFilter;
-    return new Date().toISOString().slice(0, 7);
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   }, [monthFilter]);
 
   // ACCUMULATED TOTAL TARGET LOGIC
@@ -418,7 +419,9 @@ export default function IntegratedDashboard() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Financial_Report");
     const buffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-    saveAs(new Blob([buffer]), `VF_Report_${currentMonthStr}.xlsx`);
+    const now = new Date();
+    const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    saveAs(new Blob([buffer]), `VF_Report_${dateStr}.xlsx`);
   };
 
   if (loading) return (
@@ -455,7 +458,9 @@ export default function IntegratedDashboard() {
                  <option value="" className="bg-[#151b2a]">Pilih Bulan</option>
                  {Array.from({length: 12}, (_, i) => {
                     const d = new Date(2026, i, 1);
-                    const val = d.toISOString().slice(0, 7);
+                    const year = d.getFullYear();
+                    const month = String(d.getMonth() + 1).padStart(2, '0');
+                    const val = `${year}-${month}`;
                     const label = d.toLocaleString('id-ID', { month: 'short', year: 'numeric' });
                     return <option key={i} value={val} className="bg-[#151b2a]">{label}</option>
                  })}
