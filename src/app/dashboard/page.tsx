@@ -430,6 +430,27 @@ export default function IntegratedDashboard() {
     }
   }
 
+  async function deleteMaster(id: string, type: string, name: string) {
+    const confirmDelete = confirm(`⚠️ PERINGATAN: Hapus ${type} "${name}"?\nData yang sudah dihapus tidak dapat dikembalikan.`);
+    if (!confirmDelete) return;
+
+    setMasterLoading(true);
+    try {
+      const table = type === "promotor" ? "promotors" : "tokos";
+      const { error } = await supabase.from(table).delete().eq("id", id);
+      
+      if (error) throw error;
+      
+      alert(`✅ ${type === 'promotor' ? 'Promotor' : 'Toko'} Berhasil Dihapus!`);
+      await loadAllData();
+    } catch (err: any) {
+      console.error("Delete Error:", err);
+      alert("❌ GAGAL HAPUS: " + (err.message || "Data mungkin sedang digunakan di tabel lain"));
+    } finally {
+      setMasterLoading(false);
+    }
+  }
+
   async function handleLogout() {
     const confirmLogout = confirm("Apakah Anda yakin ingin keluar?");
     if (!confirmLogout) return;
@@ -1111,25 +1132,65 @@ export default function IntegratedDashboard() {
                  </div>
               </div>
 
-              <div className="bg-[#151b2a] p-10 rounded-[3rem] border border-white/5 flex flex-col">
-                 <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-[#aec6ff]/40 mb-6">Database Tim & Penempatan</h3>
-                 <div className="flex-1 overflow-y-auto max-h-[500px] space-y-3 pr-2 scrollbar-thin scrollbar-thumb-white/5">
-                    {promotors.map((p, i) => (
-                       <div key={i} className="bg-[#0c1321] p-5 rounded-2xl border border-white/5 flex justify-between items-center group">
-                          <div>
-                             <p className="text-sm font-black text-white uppercase">{p.nama_promotor}</p>
-                             <p className="text-[10px] font-black text-[#aec6ff] uppercase mt-1">{p.nama_toko}</p>
-                          </div>
-                          <button 
-                             onClick={() => setMasterForm({type: 'promotor', name: p.nama_promotor, toko: p.nama_toko, sator: p.sator, area: p.area})}
-                             className="opacity-0 group-hover:opacity-100 p-3 rounded-xl bg-white/5 text-white/20 hover:text-[#aec6ff] transition-all"
-                          >
-                             <span className="material-icons-outlined text-sm">swap_horiz</span>
-                          </button>
-                       </div>
-                    ))}
-                 </div>
-              </div>
+               <div className="bg-[#151b2a] p-10 rounded-[3rem] border border-white/5 flex flex-col">
+                  <div className="flex justify-between items-center mb-6">
+                     <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-[#aec6ff]/40">Daftar {masterForm.type === 'promotor' ? 'Promotor' : 'Toko'} Aktif</h3>
+                     <button onClick={() => setMasterForm({type: masterForm.type, name: "", toko: "", sator: "", area: "Flotim"})} className="text-[9px] font-black uppercase text-[#aec6ff] hover:underline">Reset Form</button>
+                  </div>
+                  <div className="flex-1 overflow-y-auto max-h-[500px] space-y-3 pr-2 scrollbar-thin scrollbar-thumb-white/5">
+                     {masterForm.type === 'promotor' ? (
+                       promotors.map((p, i) => (
+                        <div key={i} className="bg-[#0c1321] p-5 rounded-2xl border border-white/5 flex justify-between items-center group">
+                           <div className="min-w-0">
+                              <p className="text-sm font-black text-white uppercase truncate">{p.nama_promotor}</p>
+                              <p className="text-[10px] font-black text-[#aec6ff] uppercase mt-1 truncate">{p.nama_toko}</p>
+                           </div>
+                           <div className="flex items-center gap-2">
+                              <button 
+                                 onClick={() => setMasterForm({type: 'promotor', name: p.nama_promotor, toko: p.nama_toko, sator: p.sator, area: p.area})}
+                                 className="opacity-0 group-hover:opacity-100 p-3 rounded-xl bg-white/5 text-[#aec6ff] hover:bg-[#aec6ff] hover:text-[#0c1321] transition-all"
+                                 title="Rolling / Edit"
+                              >
+                                 <span className="material-icons-outlined text-sm">swap_horiz</span>
+                              </button>
+                              <button 
+                                 onClick={() => deleteMaster(p.id, 'promotor', p.nama_promotor)}
+                                 className="opacity-0 group-hover:opacity-100 p-3 rounded-xl bg-white/5 text-rose-500/40 hover:bg-rose-500 hover:text-white transition-all"
+                                 title="Hapus"
+                              >
+                                 <span className="material-icons-outlined text-sm">delete</span>
+                              </button>
+                           </div>
+                        </div>
+                       ))
+                     ) : (
+                       tokos.map((t, i) => (
+                        <div key={i} className="bg-[#0c1321] p-5 rounded-2xl border border-white/5 flex justify-between items-center group">
+                           <div className="min-w-0">
+                              <p className="text-sm font-black text-white uppercase truncate">{t.nama_toko}</p>
+                              <p className="text-[10px] font-black text-[#aec6ff] uppercase mt-1 truncate">{t.sator} | {t.area}</p>
+                           </div>
+                           <div className="flex items-center gap-2">
+                              <button 
+                                 onClick={() => setMasterForm({type: 'toko', name: t.nama_toko, toko: "", sator: t.sator, area: t.area})}
+                                 className="opacity-0 group-hover:opacity-100 p-3 rounded-xl bg-white/5 text-[#aec6ff] hover:bg-[#aec6ff] hover:text-[#0c1321] transition-all"
+                                 title="Edit Toko"
+                              >
+                                 <span className="material-icons-outlined text-sm">edit</span>
+                              </button>
+                              <button 
+                                 onClick={() => deleteMaster(t.id, 'toko', t.nama_toko)}
+                                 className="opacity-0 group-hover:opacity-100 p-3 rounded-xl bg-white/5 text-rose-500/40 hover:bg-rose-500 hover:text-white transition-all"
+                                 title="Hapus"
+                              >
+                                 <span className="material-icons-outlined text-sm">delete</span>
+                              </button>
+                           </div>
+                        </div>
+                       ))
+                     )}
+                  </div>
+               </div>
            </div>
         )}
 
