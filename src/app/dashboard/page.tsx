@@ -64,11 +64,13 @@ export default function IntegratedDashboard() {
   async function loadAllData() {
     setLoading(true);
     try {
-      const { data: kd } = await supabase.from("kredit_vast").select("*");
-      const { data: pr } = await supabase.from("promotors").select("*");
-      const { data: tg } = await supabase.from("targets").select("*");
-      const { data: st } = await supabase.from("sators").select("*");
+      const { data: kd, error: e1 } = await supabase.from("kredit_vast").select("*");
+      const { data: pr, error: e2 } = await supabase.from("promotors").select("*");
+      const { data: tg, error: e3 } = await supabase.from("targets").select("*");
+      const { data: st, error: e4 } = await supabase.from("sators").select("*");
       
+      if (e1 || e2 || e3 || e4) console.warn("Some data fetch errors:", {e1, e2, e3, e4});
+
       // Try 'tokos' then 'toko' if empty
       let { data: tk } = await supabase.from("tokos").select("*");
       if (!tk || tk.length === 0) {
@@ -103,7 +105,8 @@ export default function IntegratedDashboard() {
 
   // GLOBAL FILTER LOGIC
   const filteredData = useMemo(() => {
-    return data.filter((d) => {
+    return (data || []).filter((d) => {
+      if (!d.tanggal) return false;
       if (dateFilter && d.tanggal !== dateFilter) return false;
       if (monthFilter && !d.tanggal.startsWith(monthFilter)) return false;
       if (areaFilter) {
@@ -161,13 +164,14 @@ export default function IntegratedDashboard() {
 
   // SATOR LOGIC
   const satorStats = useMemo(() => {
+    const sourceSators = sators || [];
     const filteredSators = areaFilter 
-      ? sators.filter(s => (s.area || "").toLowerCase().trim() === areaFilter.toLowerCase().trim())
-      : sators;
+      ? sourceSators.filter(s => (s.area || "").toLowerCase().trim() === areaFilter.toLowerCase().trim())
+      : sourceSators;
 
     return filteredSators.map((s) => {
       const sName = s.nama_sator?.toLowerCase().trim();
-      const sData = filteredData.filter((d) => (d.sator || "").toLowerCase().trim() === sName);
+      const sData = (filteredData || []).filter((d) => (d.sator || "").toLowerCase().trim() === sName);
       
       const closing = sData.filter((d) => (d.status || "").toLowerCase().includes("clos")).length;
       const pending = sData.filter((d) => (d.status || "").toLowerCase().includes("pend")).length;
@@ -191,13 +195,14 @@ export default function IntegratedDashboard() {
 
   // TEAM LOGIC
   const teamStats = useMemo(() => {
+    const sourcePromotors = promotors || [];
     const filteredPromotors = areaFilter
-      ? promotors.filter(p => normalize(p.area) === normalize(areaFilter))
-      : promotors;
+      ? sourcePromotors.filter(p => normalize(p.area) === normalize(areaFilter))
+      : sourcePromotors;
 
     return filteredPromotors.map((p) => {
       const pName = normalize(p.nama_promotor);
-      const pData = filteredData.filter((d) => normalize(d.promotor) === pName);
+      const pData = (filteredData || []).filter((d) => normalize(d.promotor) === pName);
       const count = pData.length;
       
       const closing = pData.filter((d) => (d.status || "").toLowerCase().includes("clos")).length;
@@ -220,17 +225,20 @@ export default function IntegratedDashboard() {
 
   const dealerStats = useMemo(() => {
     // SMART FALLBACK: If tokos table is empty, generate from unique names in data & targets
-    let sourceTokos = tokos;
-    if (!sourceTokos.length && data.length) {
+    let sourceTokos = tokos || [];
+    const sourceData = data || [];
+    const sourcePromotors = promotors || [];
+
+    if (!sourceTokos.length && sourceData.length) {
       const uniqueNames = Array.from(new Set([
-        ...data.map(d => d.toko),
-        ...promotors.map(p => p.nama_toko)
+        ...sourceData.map(d => d.toko),
+        ...sourcePromotors.map(p => p.nama_toko)
       ])).filter(Boolean);
       
       sourceTokos = uniqueNames.map(name => ({
         nama_toko: name,
-        area: promotors.find(p => normalize(p.nama_toko) === normalize(name))?.area || "Global",
-        sator: promotors.find(p => normalize(p.nama_toko) === normalize(name))?.sator || "Global"
+        area: sourcePromotors.find(p => normalize(p.nama_toko) === normalize(name))?.area || "Global",
+        sator: sourcePromotors.find(p => normalize(p.nama_toko) === normalize(name))?.sator || "Global"
       }));
     }
 
@@ -242,7 +250,7 @@ export default function IntegratedDashboard() {
 
     return filteredTokos.map((t) => {
       const tName = normalize(t.nama_toko);
-      const tData = filteredData.filter((d) => normalize(d.toko) === tName);
+      const tData = (filteredData || []).filter((d) => normalize(d.toko) === tName);
       const count = tData.length;
       const closing = tData.filter((d) => (d.status || "").toLowerCase().includes("clos")).length;
       const pending = tData.filter((d) => (d.status || "").toLowerCase().includes("pend")).length;
@@ -263,9 +271,9 @@ export default function IntegratedDashboard() {
   }, [tokos, data, filteredData, targets, promotors, currentMonthStr, areaFilter, dateFilter, daysInMonth]);
 
   const availableTokos = useMemo(() => {
-    const fromTable = tokos.map(t => t.nama_toko);
-    const fromData = data.map(d => d.toko);
-    const fromPromotors = promotors.map(p => p.nama_toko);
+    const fromTable = (tokos || []).map(t => t.nama_toko);
+    const fromData = (data || []).map(d => d.toko);
+    const fromPromotors = (promotors || []).map(p => p.nama_toko);
     return Array.from(new Set([...fromTable, ...fromData, ...fromPromotors])).filter(Boolean).sort();
   }, [tokos, data, promotors]);
 
@@ -273,10 +281,9 @@ export default function IntegratedDashboard() {
   // NEW: TYPE ANALYSIS (Market Intelligence - Global Perspective)
   const typeAnalysis = useMemo(() => {
     const counts: any = { overall: {}, acc: {}, rej: {}, pend: {} };
-    // Use 'data' instead of 'filteredData' to show global trends
     const sourceData = areaFilter 
-      ? data.filter(d => (d.area || "").toLowerCase().trim() === areaFilter.toLowerCase().trim())
-      : data;
+      ? (data || []).filter(d => (d.area || "").toLowerCase().trim() === areaFilter.toLowerCase().trim())
+      : (data || []);
 
     sourceData.forEach(d => {
       const type = d.type_hp || "Unknown";
@@ -300,8 +307,8 @@ export default function IntegratedDashboard() {
   const pendingReasons = useMemo(() => {
     const counts: any = {};
     const sourceData = areaFilter 
-      ? data.filter(d => (d.area || "").toLowerCase().trim() === areaFilter.toLowerCase().trim())
-      : data;
+      ? (data || []).filter(d => (d.area || "").toLowerCase().trim() === areaFilter.toLowerCase().trim())
+      : (data || []);
 
     sourceData.filter(d => (d.status || "").toLowerCase().includes("pend")).forEach(d => {
       const reason = d.alasan_pending || d.keterangan || "Tanpa Keterangan";
@@ -313,8 +320,8 @@ export default function IntegratedDashboard() {
   const topPromotorAnalysis = useMemo(() => {
     const stats: any = {};
     const sourceData = areaFilter 
-      ? data.filter(d => (d.area || "").toLowerCase().trim() === areaFilter.toLowerCase().trim())
-      : data;
+      ? (data || []).filter(d => (d.area || "").toLowerCase().trim() === areaFilter.toLowerCase().trim())
+      : (data || []);
 
     sourceData.forEach(d => {
       const p = d.promotor || "Unknown";
@@ -359,24 +366,23 @@ export default function IntegratedDashboard() {
       unit: targetForm.unit
     };
 
-    let error;
-    if (editingTargetId) {
-      const { error: err } = await supabase.from("targets").update(payload).eq("id", editingTargetId);
-      error = err;
-    } else {
-      const { error: err } = await supabase.from("targets").insert([payload]);
-      error = err;
-    }
-    
-    if (error) {
-      alert("Gagal simpan target!");
-    } else {
-      alert(editingTargetId ? "Target Diperbarui!" : "Target Disimpan!");
+    try {
+      const { error } = editingTargetId 
+        ? await supabase.from("targets").update(payload).eq("id", editingTargetId)
+        : await supabase.from("targets").insert([payload]);
+      
+      if (error) throw error;
+      
+      alert(editingTargetId ? "✅ Target Diperbarui!" : "✅ Target Disimpan!");
       setTargetForm({ promotor: "", target: "", bulan: currentMonthStr, unit: "ALL UNITS" });
       setEditingTargetId(null);
-      loadAllData();
+      await loadAllData();
+    } catch (err: any) {
+      console.error("Save Target Error:", err);
+      alert("❌ GAGAL: " + (err.message || "Terjadi kesalahan saat simpan target"));
+    } finally {
+      setTargetLoading(false);
     }
-    setTargetLoading(false);
   }
 
   // MASTER DATA STATE
@@ -384,30 +390,44 @@ export default function IntegratedDashboard() {
   const [masterLoading, setMasterLoading] = useState(false);
 
   async function saveMaster() {
-    if (!masterForm.name) return alert("Nama wajib diisi!");
+    if (!masterForm.name) return alert("❌ Nama wajib diisi!");
+    if (masterForm.type === "promotor" && !masterForm.toko) return alert("❌ Toko penempatan wajib dipilih!");
+    if (!masterForm.sator || !masterForm.area) return alert("❌ Sator & Area wajib diisi!");
+    
     setMasterLoading(true);
     
-    if (masterForm.type === "toko") {
-      const { error } = await supabase.from("tokos").insert([{
-        nama_toko: masterForm.name,
-        area: masterForm.area,
-        sator: masterForm.sator
-      }]);
-      if (error) alert("Gagal tambah toko!");
-    } else {
-      const { error } = await supabase.from("promotors").upsert([{
-        nama_promotor: masterForm.name,
-        nama_toko: masterForm.toko,
-        sator: masterForm.sator,
-        area: masterForm.area
-      }], { onConflict: 'nama_promotor' });
-      if (error) alert("Gagal simpan promotor!");
+    try {
+      if (masterForm.type === "toko") {
+        // Use upsert to allow updating existing toko or adding new one
+        const { error } = await supabase.from("tokos").upsert([{
+          nama_toko: masterForm.name,
+          area: masterForm.area,
+          sator: masterForm.sator
+        }], { onConflict: 'nama_toko' });
+        
+        if (error) throw error;
+        alert("✅ Toko Berhasil Disimpan!");
+      } else {
+        // Promoter Rolling / Addition
+        const { error } = await supabase.from("promotors").upsert([{
+          nama_promotor: masterForm.name,
+          nama_toko: masterForm.toko,
+          sator: masterForm.sator,
+          area: masterForm.area
+        }], { onConflict: 'nama_promotor' });
+        
+        if (error) throw error;
+        alert("✅ Data Promotor / Rolling Berhasil!");
+      }
+      
+      setMasterForm({ type: "promotor", name: "", toko: "", sator: "", area: "Flotim" });
+      await loadAllData();
+    } catch (err: any) {
+      console.error("Save Master Error:", err);
+      alert("❌ GAGAL SIMPAN: " + (err.message || "Periksa koneksi database atau RLS"));
+    } finally {
+      setMasterLoading(false);
     }
-    
-    alert("Data Berhasil Disimpan!");
-    setMasterForm({ type: "promotor", name: "", toko: "", sator: "", area: "Flotim" });
-    loadAllData();
-    setMasterLoading(false);
   }
 
   async function handleLogout() {
