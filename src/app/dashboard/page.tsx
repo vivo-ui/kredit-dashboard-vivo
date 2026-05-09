@@ -50,6 +50,7 @@ export default function IntegratedDashboard() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [areaFilter, setAreaFilter] = useState("");
+  const [satorFilter, setSatorFilter] = useState("");
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 1024);
@@ -116,11 +117,14 @@ export default function IntegratedDashboard() {
 
       if (monthFilter && !d.tanggal.startsWith(monthFilter)) return false;
       if (areaFilter) {
-        return (d.area || "").toLowerCase().trim() === areaFilter.toLowerCase().trim();
+        if ((d.area || "").toLowerCase().trim() !== areaFilter.toLowerCase().trim()) return false;
+      }
+      if (satorFilter) {
+        return (d.sator || "").toLowerCase().trim() === satorFilter.toLowerCase().trim();
       }
       return true;
     });
-  }, [data, monthFilter, areaFilter, startDate, endDate]);
+  }, [data, monthFilter, areaFilter, satorFilter, startDate, endDate]);
 
   // Sync Month String with Filter or Current Date
   const currentMonthStr = useMemo(() => {
@@ -140,12 +144,16 @@ export default function IntegratedDashboard() {
         
         if (areaFilter) {
           const p = promotors.find(x => normalize(x.nama_promotor) === normalize(t.promotor));
-          return normalize(p?.area) === normalize(areaFilter);
+          if (normalize(p?.area) !== normalize(areaFilter)) return false;
+        }
+        if (satorFilter) {
+          const p = promotors.find(x => normalize(x.nama_promotor) === normalize(t.promotor));
+          return normalize(p?.sator) === normalize(satorFilter);
         }
         return true;
       })
       .reduce((sum, t) => sum + (Number(t.target) || 0), 0);
-  }, [targets, currentMonthStr, areaFilter, promotors]);
+  }, [targets, currentMonthStr, areaFilter, satorFilter, promotors]);
 
   const daysInMonth = useMemo(() => {
     try {
@@ -187,10 +195,11 @@ export default function IntegratedDashboard() {
 
   // SATOR LOGIC
   const satorStats = useMemo(() => {
-    const sourceSators = sators || [];
-    const filteredSators = areaFilter 
-      ? sourceSators.filter(s => (s.area || "").toLowerCase().trim() === areaFilter.toLowerCase().trim())
-      : sourceSators;
+      const filteredSators = sators.filter(s => {
+         if (areaFilter && (s.area || "").toLowerCase().trim() !== areaFilter.toLowerCase().trim()) return false;
+         if (satorFilter && (s.nama_sator || "").toLowerCase().trim() !== satorFilter.toLowerCase().trim()) return false;
+         return true;
+      });
 
     return filteredSators.map((s) => {
       const sName = s.nama_sator?.toLowerCase().trim();
@@ -217,14 +226,17 @@ export default function IntegratedDashboard() {
 
       return { ...s, count, closing, pending, reject, sTarget, percent, approvalRate };
     }).sort((a, b) => b.percent - a.percent);
-  }, [sators, filteredData, targets, promotors, currentMonthStr, areaFilter, daysInMonth, startDate, endDate, rangeDays]);
+  }, [sators, filteredData, targets, promotors, currentMonthStr, areaFilter, satorFilter, daysInMonth, startDate, endDate, rangeDays]);
 
   // TEAM LOGIC
   const teamStats = useMemo(() => {
-    const sourcePromotors = promotors || [];
-    const filteredPromotors = areaFilter
-      ? sourcePromotors.filter(p => normalize(p.area) === normalize(areaFilter))
-      : sourcePromotors;
+      let filteredPromotors = promotors || [];
+      if (areaFilter) {
+         filteredPromotors = filteredPromotors.filter(p => normalize(p.area) === normalize(areaFilter));
+      }
+      if (satorFilter) {
+         filteredPromotors = filteredPromotors.filter(p => normalize(p.sator) === normalize(satorFilter));
+      }
 
     return filteredPromotors.map((p) => {
       const pName = normalize(p.nama_promotor);
@@ -248,7 +260,7 @@ export default function IntegratedDashboard() {
 
       return { ...p, count, closing, pending, reject, pTarget, approvalRate, progress };
     }).sort((a, b) => b.progress - a.progress);
-  }, [promotors, filteredData, targets, currentMonthStr, areaFilter, daysInMonth, startDate, endDate, rangeDays]);
+  }, [promotors, filteredData, targets, currentMonthStr, areaFilter, satorFilter, daysInMonth, startDate, endDate, rangeDays]);
 
 
   const dealerStats = useMemo(() => {
@@ -272,9 +284,13 @@ export default function IntegratedDashboard() {
 
     if (!sourceTokos.length) return [];
 
-    const filteredTokos = areaFilter
-      ? sourceTokos.filter(t => normalize(t.area) === normalize(areaFilter))
-      : sourceTokos;
+    let filteredTokos = sourceTokos;
+    if (areaFilter) {
+      filteredTokos = filteredTokos.filter(t => normalize(t.area) === normalize(areaFilter));
+    }
+    if (satorFilter) {
+      filteredTokos = filteredTokos.filter(t => normalize(t.sator) === normalize(satorFilter));
+    }
 
     return filteredTokos.map((t) => {
       const tName = normalize(t.nama_toko);
@@ -300,7 +316,7 @@ export default function IntegratedDashboard() {
 
       return { ...t, count, closing, pending, reject, tTarget, progress, approvalRate };
     }).sort((a, b) => b.progress - a.progress);
-  }, [tokos, data, filteredData, targets, promotors, currentMonthStr, areaFilter, daysInMonth, startDate, endDate, rangeDays]);
+  }, [tokos, data, filteredData, targets, promotors, currentMonthStr, areaFilter, satorFilter, daysInMonth, startDate, endDate, rangeDays]);
 
   const availableTokos = useMemo(() => {
     const fromTable = (tokos || []).map(t => t.nama_toko);
@@ -535,10 +551,16 @@ export default function IntegratedDashboard() {
         <div className="flex items-center gap-3 w-full md:w-auto">
            {/* FILTERS */}
            <div className="flex-1 md:flex-none flex bg-[#151b2a] p-2 rounded-2xl border border-white/5 gap-2 overflow-x-auto no-scrollbar">
-              <select className="bg-[#151b2a] text-[10px] font-black uppercase text-[#aec6ff] px-4 py-2 outline-none border-r border-white/5 cursor-pointer" value={areaFilter} onChange={(e)=>setAreaFilter(e.target.value)}>
+              <select className="bg-[#151b2a] text-[10px] font-black uppercase text-[#aec6ff] px-4 py-2 outline-none border-r border-white/5 cursor-pointer" value={areaFilter} onChange={(e)=>{setAreaFilter(e.target.value); setSatorFilter("");}}>
                  <option value="" className="bg-[#151b2a]">Semua Area</option>
                  <option value="Flotim" className="bg-[#151b2a]">Flotim</option>
                  <option value="Flobar" className="bg-[#151b2a]">Flobar</option>
+              </select>
+              <select className="bg-[#151b2a] text-[10px] font-black uppercase text-[#aec6ff] px-4 py-2 outline-none border-r border-white/5 cursor-pointer" value={satorFilter} onChange={(e)=>setSatorFilter(e.target.value)}>
+                 <option value="" className="bg-[#151b2a]">Pilih Sator</option>
+                 {sators.filter(s => !areaFilter || normalize(s.area) === normalize(areaFilter)).map((s, i) => (
+                    <option key={i} value={s.nama_sator} className="bg-[#151b2a]">{s.nama_sator}</option>
+                 ))}
               </select>
               <div className="flex items-center gap-1 border-r border-white/5 px-2">
                  <span className="text-[8px] font-black text-white/20 uppercase">Start</span>
