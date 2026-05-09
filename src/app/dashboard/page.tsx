@@ -47,7 +47,8 @@ export default function IntegratedDashboard() {
 
   // Global Filters
   const [monthFilter, setMonthFilter] = useState("");
-  const [dateFilter, setDateFilter] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [areaFilter, setAreaFilter] = useState("");
 
   useEffect(() => {
@@ -107,14 +108,19 @@ export default function IntegratedDashboard() {
   const filteredData = useMemo(() => {
     return (data || []).filter((d) => {
       if (!d.tanggal) return false;
-      if (dateFilter && d.tanggal !== dateFilter) return false;
+      
+      // Handle Date Range
+      if (startDate && endDate) {
+        if (d.tanggal < startDate || d.tanggal > endDate) return false;
+      }
+
       if (monthFilter && !d.tanggal.startsWith(monthFilter)) return false;
       if (areaFilter) {
         return (d.area || "").toLowerCase().trim() === areaFilter.toLowerCase().trim();
       }
       return true;
     });
-  }, [data, dateFilter, monthFilter, areaFilter]);
+  }, [data, monthFilter, areaFilter, startDate, endDate]);
 
   // Sync Month String with Filter or Current Date
   const currentMonthStr = useMemo(() => {
@@ -152,14 +158,31 @@ export default function IntegratedDashboard() {
     }
   }, [currentMonthStr]);
 
+  const rangeDays = useMemo(() => {
+    if (!startDate || !endDate) return 1;
+    try {
+      const s = new Date(startDate);
+      const e = new Date(endDate);
+      const diff = Math.ceil((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      return diff > 0 ? diff : 1;
+    } catch { return 1; }
+  }, [startDate, endDate]);
+
+  const globalPencapaian = useMemo(() => {
+    const closing = filteredData.filter((d) => (d.status || "").toLowerCase().includes("clos")).length;
+    const pending = filteredData.filter((d) => (d.status || "").toLowerCase().includes("pend")).length;
+    const reject = filteredData.filter((d) => (d.status || "").toLowerCase().includes("rej")).length;
+    return closing + pending + reject;
+  }, [filteredData]);
+
   const displayTarget = useMemo(() => {
     if (!globalTarget) return 0;
-    if (dateFilter) return Math.round(globalTarget / daysInMonth);
+    if (startDate && endDate) return Math.round((globalTarget / daysInMonth) * rangeDays);
     return globalTarget;
-  }, [globalTarget, dateFilter, daysInMonth]);
+  }, [globalTarget, daysInMonth, startDate, endDate, rangeDays]);
 
   const globalProgress = displayTarget > 0 
-    ? Math.round((filteredData.length / displayTarget) * 100) 
+    ? Math.round((globalPencapaian / displayTarget) * 100) 
     : 0;
 
   // SATOR LOGIC
@@ -176,7 +199,7 @@ export default function IntegratedDashboard() {
       const closing = sData.filter((d) => (d.status || "").toLowerCase().includes("clos")).length;
       const pending = sData.filter((d) => (d.status || "").toLowerCase().includes("pend")).length;
       const reject = sData.filter((d) => (d.status || "").toLowerCase().includes("rej")).length;
-      const count = sData.length;
+      const count = closing + pending + reject;
 
       // Accumulate targets from promoters in this sator
       const rawTarget = (targets || []).filter(t => {
@@ -185,13 +208,16 @@ export default function IntegratedDashboard() {
         return p?.sator?.toLowerCase().trim() === sName && tBulan.startsWith(currentMonthStr);
       }).reduce((sum, t) => sum + (Number(t.target) || 0), 0);
 
-      const sTarget = dateFilter ? Math.round(rawTarget / daysInMonth) : rawTarget;
+      const sTarget = (startDate && endDate) 
+        ? Math.round((rawTarget / daysInMonth) * rangeDays)
+        : rawTarget;
+      
       const percent = sTarget > 0 ? Math.round((count / sTarget) * 100) : 0;
       const approvalRate = count > 0 ? Math.round(((pending + closing) / count) * 100) : 0;
 
       return { ...s, count, closing, pending, reject, sTarget, percent, approvalRate };
     }).sort((a, b) => b.percent - a.percent);
-  }, [sators, filteredData, targets, promotors, currentMonthStr, areaFilter, dateFilter, daysInMonth]);
+  }, [sators, filteredData, targets, promotors, currentMonthStr, areaFilter, daysInMonth, startDate, endDate, rangeDays]);
 
   // TEAM LOGIC
   const teamStats = useMemo(() => {
@@ -203,24 +229,26 @@ export default function IntegratedDashboard() {
     return filteredPromotors.map((p) => {
       const pName = normalize(p.nama_promotor);
       const pData = (filteredData || []).filter((d) => normalize(d.promotor) === pName);
-      const count = pData.length;
-      
       const closing = pData.filter((d) => (d.status || "").toLowerCase().includes("clos")).length;
       const pending = pData.filter((d) => (d.status || "").toLowerCase().includes("pend")).length;
       const reject = pData.filter((d) => (d.status || "").toLowerCase().includes("rej")).length;
+      const count = closing + pending + reject;
 
       const rawTarget = (targets || []).find(t => {
         const tBulan = (t.bulan || "").toString().trim();
         return normalize(t.promotor) === pName && tBulan.startsWith(currentMonthStr);
       })?.target || 0;
 
-      const pTarget = dateFilter ? Math.round(rawTarget / daysInMonth) : rawTarget;
+      const pTarget = (startDate && endDate) 
+        ? Math.round((rawTarget / daysInMonth) * rangeDays)
+        : rawTarget;
+        
       const approvalRate = count > 0 ? Math.round(((pending + closing) / count) * 100) : 0;
       const progress = pTarget > 0 ? Math.round((count / pTarget) * 100) : 0;
 
       return { ...p, count, closing, pending, reject, pTarget, approvalRate, progress };
     }).sort((a, b) => b.progress - a.progress);
-  }, [promotors, filteredData, targets, currentMonthStr, areaFilter, dateFilter, daysInMonth]);
+  }, [promotors, filteredData, targets, currentMonthStr, areaFilter, daysInMonth, startDate, endDate, rangeDays]);
 
 
   const dealerStats = useMemo(() => {
@@ -251,9 +279,10 @@ export default function IntegratedDashboard() {
     return filteredTokos.map((t) => {
       const tName = normalize(t.nama_toko);
       const tData = (filteredData || []).filter((d) => normalize(d.toko) === tName);
-      const count = tData.length;
       const closing = tData.filter((d) => (d.status || "").toLowerCase().includes("clos")).length;
       const pending = tData.filter((d) => (d.status || "").toLowerCase().includes("pend")).length;
+      const reject = tData.filter((d) => (d.status || "").toLowerCase().includes("rej")).length;
+      const count = closing + pending + reject;
       
       const rawTarget = (targets || []).filter(tg => {
         const p = (promotors || []).find(x => normalize(x.nama_promotor) === normalize(tg.promotor));
@@ -262,13 +291,16 @@ export default function IntegratedDashboard() {
         return normalize(p?.nama_toko) === tName && tBulan.startsWith(currentMonthStr);
       }).reduce((sum, tg) => sum + (Number(tg.target) || 0), 0);
 
-      const tTarget = dateFilter ? Math.round(rawTarget / daysInMonth) : rawTarget;
+      const tTarget = (startDate && endDate) 
+        ? Math.round((rawTarget / daysInMonth) * rangeDays)
+        : rawTarget;
+        
       const progress = tTarget > 0 ? Math.round((count / tTarget) * 100) : 0;
       const approvalRate = count > 0 ? Math.round(((closing + pending) / count) * 100) : 0;
 
-      return { ...t, count, closing, pending, tTarget, progress, approvalRate };
+      return { ...t, count, closing, pending, reject, tTarget, progress, approvalRate };
     }).sort((a, b) => b.progress - a.progress);
-  }, [tokos, data, filteredData, targets, promotors, currentMonthStr, areaFilter, dateFilter, daysInMonth]);
+  }, [tokos, data, filteredData, targets, promotors, currentMonthStr, areaFilter, daysInMonth, startDate, endDate, rangeDays]);
 
   const availableTokos = useMemo(() => {
     const fromTable = (tokos || []).map(t => t.nama_toko);
@@ -508,7 +540,12 @@ export default function IntegratedDashboard() {
                  <option value="Flotim" className="bg-[#151b2a]">Flotim</option>
                  <option value="Flobar" className="bg-[#151b2a]">Flobar</option>
               </select>
-              <input type="date" className="bg-[#151b2a] text-[10px] font-black uppercase text-[#aec6ff] px-4 py-2 outline-none border-r border-white/5 cursor-pointer" value={dateFilter} onChange={(e)=>setDateFilter(e.target.value)} />
+              <div className="flex items-center gap-1 border-r border-white/5 px-2">
+                 <span className="text-[8px] font-black text-white/20 uppercase">Start</span>
+                 <input type="date" className="bg-[#151b2a] text-[10px] font-black uppercase text-[#aec6ff] px-2 py-2 outline-none cursor-pointer" value={startDate} onChange={(e)=>setStartDate(e.target.value)} />
+                 <span className="text-[8px] font-black text-white/20 uppercase ml-2">End</span>
+                 <input type="date" className="bg-[#151b2a] text-[10px] font-black uppercase text-[#aec6ff] px-2 py-2 outline-none cursor-pointer" value={endDate} onChange={(e)=>setEndDate(e.target.value)} />
+              </div>
               <select className="bg-[#151b2a] text-[10px] font-black uppercase text-[#aec6ff] px-4 py-2 outline-none cursor-pointer" value={monthFilter} onChange={(e)=>setMonthFilter(e.target.value)}>
                  <option value="" className="bg-[#151b2a]">Pilih Bulan</option>
                  {Array.from({length: 12}, (_, i) => {
@@ -541,10 +578,10 @@ export default function IntegratedDashboard() {
                   <span className="material-icons-outlined text-[15rem] text-[#aec6ff]">analytics</span>
                </div>
                <p className="text-[11px] font-black uppercase tracking-[0.5em] text-[#aec6ff]/40 mb-4">
-                 {dateFilter ? `Daily Target Progress (${dateFilter})` : `Monthly Target Progress (${currentMonthStr})`}
+                 {startDate && endDate ? `Range Progress (${startDate} - ${endDate})` : `Monthly Progress (${currentMonthStr})`}
                </p>
                <div className="flex items-baseline gap-4 mb-8">
-                  <h2 className="text-8xl font-black tracking-tighter text-[#aec6ff]">{filteredData.length}</h2>
+                  <h2 className="text-8xl font-black tracking-tighter text-[#aec6ff]">{globalPencapaian}</h2>
                   <span className="text-2xl font-bold text-white/10">/ {displayTarget} Target</span>
                </div>
                <div className="space-y-4 max-w-lg relative z-10">
@@ -556,7 +593,7 @@ export default function IntegratedDashboard() {
                     <div className={`h-full transition-all duration-1000 ${globalProgress >= 100 ? 'bg-emerald-400' : 'bg-[#aec6ff]'}`} style={{width: `${Math.min(100, globalProgress)}%`}}></div>
                  </div>
                  <p className="text-[10px] font-bold text-white/20 italic">
-                   {dateFilter ? `Menampilkan target harian (Target Bulan / ${daysInMonth} hari).` : `Sinkronisasi real-time dengan seluruh area.`}
+                   {startDate && endDate ? `Target proporsional untuk ${rangeDays} hari.` : `Target bulanan penuh.`}
                  </p>
                </div>
             </section>
@@ -568,7 +605,7 @@ export default function IntegratedDashboard() {
                       <p className="text-[10px] font-bold opacity-30 uppercase mt-2">Overall ACC Rate</p>
                    </div>
                    <div className="grid grid-cols-3 gap-2 border-t border-[#0c1321]/10 pt-6">
-                      <div><p className="text-[9px] font-black opacity-30 uppercase">ACC</p><p className="text-lg font-black">{filteredData.filter(d => (d.status || "").toLowerCase().includes("clos")).length + filteredData.filter(d => (d.status || "").toLowerCase().includes("pend")).length}</p></div>
+                      <div><p className="text-[9px] font-black opacity-30 uppercase">ACC</p><p className="text-lg font-black">{filteredData.filter(d => (d.status || "").toLowerCase().includes("clos")).length}</p></div>
                       <div><p className="text-[9px] font-black opacity-30 uppercase">PEND</p><p className="text-lg font-black opacity-60">{filteredData.filter(d => (d.status || "").toLowerCase().includes("pend")).length}</p></div>
                       <div><p className="text-[9px] font-black opacity-30 uppercase">REJ</p><p className="text-lg font-black text-rose-600">{filteredData.filter(d => (d.status || "").toLowerCase().includes("rej")).length}</p></div>
                    </div>
@@ -602,7 +639,7 @@ export default function IntegratedDashboard() {
                         </div>
 
                         <div className="grid grid-cols-3 gap-2 text-center pt-4 border-t border-white/5">
-                           <div><p className="text-[8px] font-black text-white/20 uppercase">ACC</p><p className="text-sm font-black text-[#aec6ff]">{s.closing + s.pending}</p></div>
+                           <div><p className="text-[8px] font-black text-white/20 uppercase">ACC</p><p className="text-sm font-black text-[#aec6ff]">{s.closing}</p></div>
                            <div><p className="text-[8px] font-black text-white/20 uppercase">PEND</p><p className="text-sm font-black opacity-60 text-white/60">{s.pending}</p></div>
                            <div><p className="text-[8px] font-black text-white/20 uppercase">REJ</p><p className="text-sm font-black text-rose-500">{s.reject}</p></div>
                         </div>

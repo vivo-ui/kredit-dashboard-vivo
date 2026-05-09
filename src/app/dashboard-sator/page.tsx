@@ -49,7 +49,8 @@ export default function SatorDashboard() {
 
   // Filters
   const [monthFilter, setMonthFilter] = useState("");
-  const [dateFilter, setDateFilter] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
 
   // Detect Device
   useEffect(() => {
@@ -119,13 +120,15 @@ export default function SatorDashboard() {
 
   const filteredData = useMemo(() => {
     return data.filter((d) => {
-      if (dateFilter) return d.tanggal === dateFilter;
-      if (monthFilter) {
-        return d.tanggal.startsWith(monthFilter);
+      // Range filter
+      if (startDate && endDate) {
+        if (d.tanggal < startDate || d.tanggal > endDate) return false;
       }
+      
+      if (monthFilter && !d.tanggal.startsWith(monthFilter)) return false;
       return true;
     });
-  }, [data, dateFilter, monthFilter]);
+  }, [data, monthFilter, startDate, endDate]);
 
   const currentMonthStr = useMemo(() => {
     if (monthFilter) return monthFilter;
@@ -137,56 +140,86 @@ export default function SatorDashboard() {
   const filteredClosing = filteredData.filter((d) => (d.status || "").toLowerCase().includes("clos")).length;
   const filteredPending = filteredData.filter((d) => (d.status || "").toLowerCase().includes("pend")).length;
   const filteredReject = filteredData.filter((d) => (d.status || "").toLowerCase().includes("rej")).length;
-  const filteredTotal = filteredData.length;
+  const filteredTotal = filteredClosing + filteredPending + filteredReject;
   
   // Overall ACC Rate includes Closing + Pending
   const efficiency = filteredTotal > 0 ? Math.round(((filteredClosing + filteredPending) / filteredTotal) * 100) : 0;
 
+  const daysInMonth = useMemo(() => {
+    try {
+      const parts = (currentMonthStr || "").split("-");
+      if (parts.length < 2) return 30;
+      const [year, month] = parts.map(Number);
+      return new Date(year, month, 0).getDate() || 30;
+    } catch { return 30; }
+  }, [currentMonthStr]);
+
+  const rangeDays = useMemo(() => {
+    if (!startDate || !endDate) return 1;
+    try {
+      const s = new Date(startDate);
+      const e = new Date(endDate);
+      const diff = Math.ceil((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      return diff > 0 ? diff : 1;
+    } catch { return 1; }
+  }, [startDate, endDate]);
+
   const picTarget = useMemo(() => {
-    return targets
+    const rawTarget = targets
       .filter(t => promotors.some(p => normalize(p.nama_promotor) === normalize(t.promotor)) && (t.bulan || "").trim() === currentMonthStr)
       .reduce((sum, t) => sum + (t.target || 0), 0);
-  }, [targets, promotors, currentMonthStr]);
+    
+    if (startDate && endDate) return Math.round((rawTarget / daysInMonth) * rangeDays);
+    return rawTarget;
+  }, [targets, promotors, currentMonthStr, startDate, endDate, rangeDays, daysInMonth]);
 
-  const achievementPercent = picTarget > 0 ? Math.round((filteredData.length / picTarget) * 100) : 0;
+  const achievementPercent = picTarget > 0 ? Math.round((filteredTotal / picTarget) * 100) : 0;
 
   const teamStats = useMemo(() => {
     return promotors.map((p) => {
       const pName = normalize(p.nama_promotor);
       const pData = filteredData.filter((d) => normalize(d.promotor) === pName);
-      const count = pData.length;
       const closing = pData.filter((d) => (d.status || "").toLowerCase().includes("clos")).length;
       const pending = pData.filter((d) => (d.status || "").toLowerCase().includes("pend")).length;
       const reject = pData.filter((d) => (d.status || "").toLowerCase().includes("rej")).length;
+      const count = closing + pending + reject;
       
-      const pTarget = targets.find(t => normalize(t.promotor) === pName && (t.bulan || "").trim() === currentMonthStr)?.target || 0;
+      const rawTarget = targets.find(t => normalize(t.promotor) === pName && (t.bulan || "").trim() === currentMonthStr)?.target || 0;
+      const pTarget = (startDate && endDate) 
+        ? Math.round((rawTarget / daysInMonth) * rangeDays)
+        : rawTarget;
+
       const rate = count > 0 ? Math.round(((closing + pending) / count) * 100) : 0;
       const progress = pTarget > 0 ? Math.round((count / pTarget) * 100) : 0;
       
       return { ...p, count, closing, pending, reject, pTarget, rate, progress };
     }).sort((a, b) => b.progress - a.progress);
-  }, [promotors, filteredData, targets, currentMonthStr]);
+  }, [promotors, filteredData, targets, currentMonthStr, startDate, endDate, rangeDays, daysInMonth]);
 
   const dealerStats = useMemo(() => {
     return tokos.map((t) => {
       const tName = normalize(t.nama_toko);
       const tData = filteredData.filter((d) => normalize(d.toko) === tName);
-      const count = tData.length;
       const closing = tData.filter((d) => (d.status || "").toLowerCase().includes("clos")).length;
       const pending = tData.filter((d) => (d.status || "").toLowerCase().includes("pend")).length;
       const reject = tData.filter((d) => (d.status || "").toLowerCase().includes("rej")).length;
+      const count = closing + pending + reject;
 
-      const tTarget = targets.filter(tg => {
+      const rawTarget = targets.filter(tg => {
         const p = promotors.find(x => normalize(x.nama_promotor) === normalize(tg.promotor));
         return normalize(p?.nama_toko) === tName && (tg.bulan || "").trim() === currentMonthStr;
       }).reduce((sum, tg) => sum + (tg.target || 0), 0);
       
+      const tTarget = (startDate && endDate) 
+        ? Math.round((rawTarget / daysInMonth) * rangeDays)
+        : rawTarget;
+
       const progress = tTarget > 0 ? Math.round((count / tTarget) * 100) : 0;
       const rate = count > 0 ? Math.round(((closing + pending) / count) * 100) : 0;
       
       return { ...t, count, closing, pending, reject, tTarget, progress, rate };
     }).sort((a, b) => b.progress - a.progress);
-  }, [tokos, filteredData, targets, promotors, currentMonthStr]);
+  }, [tokos, filteredData, targets, promotors, currentMonthStr, startDate, endDate, rangeDays, daysInMonth]);
 
 
   const chartData = useMemo(() => {
@@ -272,9 +305,14 @@ export default function SatorDashboard() {
         
         {/* FILTERS */}
         <div className="flex flex-wrap justify-between items-center gap-6 mb-12">
-          <div className="flex bg-[#151b2a] p-1 rounded-2xl border border-white/5 w-full sm:max-w-[420px]">
-            <input type="date" className="bg-transparent text-[11px] font-black p-3 outline-none text-[#aec6ff] w-full" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} />
-            <select className="bg-transparent text-[11px] font-black p-3 outline-none text-[#aec6ff] w-full border-l border-white/5" value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)}>
+          <div className="flex bg-[#151b2a] p-1 rounded-2xl border border-white/5 w-full sm:max-w-[600px] overflow-x-auto">
+            <div className="flex items-center px-4 border-r border-white/5 whitespace-nowrap">
+               <span className="text-[8px] font-black text-white/20 uppercase">Start</span>
+               <input type="date" className="bg-transparent text-[11px] font-black p-3 outline-none text-[#aec6ff]" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+               <span className="text-[8px] font-black text-white/20 uppercase ml-2">End</span>
+               <input type="date" className="bg-transparent text-[11px] font-black p-3 outline-none text-[#aec6ff]" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+            </div>
+            <select className="bg-transparent text-[11px] font-black p-3 outline-none text-[#aec6ff] w-full" value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)}>
               <option value="" className="bg-[#151b2a]">Semua Bulan</option>
               {["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"].map((m, i) => (
                 <option key={i} value={`2026-${m}`} className="bg-[#151b2a]">{["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"][i]} 2026</option>
@@ -323,7 +361,7 @@ export default function SatorDashboard() {
                    <span className="block text-xl font-black text-rose-500">{filteredReject}</span>
                 </div>
                 <div className="bg-[#aec6ff] p-4 rounded-2xl text-center text-[#0c1321] shadow-lg shadow-[#aec6ff]/10">
-                   <span className="block text-[9px] font-black opacity-50 uppercase mb-1">Total</span>
+                   <span className="block text-[9px] font-black opacity-50 uppercase mb-1">Pencapaian</span>
                    <span className="block text-xl font-black">{filteredTotal}</span>
                 </div>
               </div>
@@ -333,9 +371,11 @@ export default function SatorDashboard() {
                <div className="absolute top-0 right-0 p-12 opacity-[0.03] scale-150">
                   <span className="material-icons-outlined text-[15rem] text-[#aec6ff]">analytics</span>
                </div>
-               <p className="text-[11px] font-black uppercase tracking-[0.5em] text-[#aec6ff]/40 mb-4">Pencapaian Area vs Target</p>
+               <p className="text-[11px] font-black uppercase tracking-[0.5em] text-[#aec6ff]/40 mb-4">
+                  {startDate && endDate ? `Range Target Progress (${startDate} - ${endDate})` : `Pencapaian Area vs Target`}
+               </p>
                <div className="flex items-baseline gap-4 mb-8">
-                  <h2 className="text-8xl font-black tracking-tighter text-[#aec6ff]">{filteredData.length}</h2>
+                  <h2 className="text-8xl font-black tracking-tighter text-[#aec6ff]">{filteredTotal}</h2>
                   <span className="text-2xl font-bold text-white/10">/ {picTarget} Target</span>
                </div>
                <div className="space-y-4 max-w-lg relative z-10">
@@ -346,7 +386,9 @@ export default function SatorDashboard() {
                  <div className="h-3 w-full bg-white/5 rounded-full overflow-hidden">
                     <div className={`h-full transition-all duration-1000 ${achievementPercent >= 100 ? 'bg-emerald-400' : 'bg-[#aec6ff]'}`} style={{width: `${Math.min(100, achievementPercent)}%`}}></div>
                  </div>
-                 <p className="text-[10px] font-bold text-white/20 italic">Sinkronisasi data real-time dengan {promotors.length} Promotor Aktif.</p>
+                 <p className="text-[10px] font-bold text-white/20 italic">
+                    {startDate && endDate ? `Menampilkan target rentang (${rangeDays} hari: ${startDate} s/d ${endDate}).` : `Sinkronisasi data real-time dengan ${promotors.length} Promotor Aktif.`}
+                 </p>
                </div>
             </section>
           </div>
@@ -380,7 +422,7 @@ export default function SatorDashboard() {
                       <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#aec6ff40', fontWeight: 'bold'}} />
                       <Tooltip cursor={{fill: '#ffffff05'}} contentStyle={{backgroundColor: '#0c1321', border: '1px solid #ffffff10', borderRadius: '16px'}} />
                       <Bar dataKey="pTarget" name="Target Unit" fill="#1d263a" radius={[10, 10, 0, 0]} barSize={40} />
-                      <Bar dataKey="count" name="Realisasi" fill="#aec6ff" radius={[10, 10, 0, 0]} barSize={40} />
+                      <Bar dataKey="count" name="Pencapaian" fill="#aec6ff" radius={[10, 10, 0, 0]} barSize={40} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -412,7 +454,7 @@ export default function SatorDashboard() {
                   </div>
                 </div>
                 <div className="grid grid-cols-3 gap-2 text-center pt-4 border-t border-white/5">
-                    <div><p className="text-[8px] font-black text-white/20 uppercase">ACC</p><p className="text-sm font-black text-[#aec6ff]">{p.closing + p.pending}</p></div>
+                    <div><p className="text-[8px] font-black text-white/20 uppercase">ACC</p><p className="text-sm font-black text-[#aec6ff]">{p.closing}</p></div>
                     <div><p className="text-[8px] font-black text-white/20 uppercase">PEND</p><p className="text-sm font-black opacity-60">{p.pending}</p></div>
                     <div><p className="text-[8px] font-black text-white/20 uppercase">REJ</p><p className="text-sm font-black text-rose-500">{p.reject}</p></div>
                 </div>
