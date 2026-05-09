@@ -514,7 +514,7 @@ export default function IntegratedDashboard() {
   if (loading) return (
     <div className="h-screen bg-[#0c1321] flex flex-col items-center justify-center font-['Manrope']">
       <div className="w-12 h-12 bg-[#aec6ff] rounded-xl flex items-center justify-center text-[#0c1321] font-black text-2xl animate-pulse mb-4 text-center">VF</div>
-      <p className="text-[#aec6ff] font-bold tracking-widest uppercase text-[10px] text-center">Calibrating Financial Hub...</p>
+      <p className="text-[#aec6ff] font-bold tracking-widest uppercase text-[10px] text-center">jangan lupa minum kopi...</p>
     </div>
   );
 
