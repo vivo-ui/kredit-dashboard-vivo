@@ -528,7 +528,7 @@ export default function IntegratedDashboard() {
            </div>
            <div>
               <h1 className="text-2xl md:text-3xl font-black text-white tracking-tighter uppercase">Kredit Area Flores</h1>
-              <p className="text-[10px] font-bold text-[#aec6ff]/40 uppercase tracking-[0.3em]">Management Oversight</p>
+              <p className="text-[10px] font-bold text-[#aec6ff]/40 uppercase tracking-[0.3em]">Management Team</p>
            </div>
         </div>
         
@@ -586,7 +586,7 @@ export default function IntegratedDashboard() {
                </div>
                <div className="space-y-4 max-w-lg relative z-10">
                  <div className="flex justify-between text-[11px] font-black uppercase tracking-widest">
-                    <span className="text-white/20">Overall Completion</span>
+                    <span className="text-white/20">Persentase Pencapaian</span>
                     <span className={globalProgress >= 100 ? 'text-emerald-400 font-black' : 'text-[#aec6ff] font-black'}>{globalProgress}%</span>
                  </div>
                  <div className="h-3 w-full bg-white/5 rounded-full overflow-hidden">
@@ -675,7 +675,7 @@ export default function IntegratedDashboard() {
              <div className="bg-[#151b2a] p-10 rounded-[3rem] border border-white/5">
                 <div className="mb-12">
                    <h3 className="text-sm font-black uppercase tracking-[0.4em] text-[#aec6ff] mb-2">Target vs Pencapaian Sator</h3>
-                   <p className="text-xs font-bold text-white/20 uppercase tracking-widest">Perbandingan Target Unit vs Realisasi per PIC Area</p>
+                   <p className="text-xs font-bold text-white/20 uppercase tracking-widest">Perbandingan Target jumlah pengajuan kredit vs Realisasi per PIC Area</p>
                 </div>
                 <div className="h-[400px] w-full">
                  <ResponsiveContainer width="100%" height="100%">
