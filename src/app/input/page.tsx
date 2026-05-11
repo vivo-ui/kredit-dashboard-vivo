@@ -322,6 +322,7 @@ export default function InputKreditPage() {
                 <option value="DP diatas 500k">DP diatas 500k</option>
                 <option value="DP diatas 600k">DP diatas 600k</option>
                 <option value="DP >800k">DP &gt;800k</option>
+                <option value="Domisili Konsumen Jauh dari Toko">Domisili Konsumen Jauh dari Toko</option>
               </select>
             </div>
           )}
