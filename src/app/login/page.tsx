@@ -52,6 +52,7 @@ export default function Login() {
         .from("users_role")
         .select("*") 
         .eq("email", cleanEmail)
+        .limit(1)
         .maybeSingle();
 
       if (userError) {
