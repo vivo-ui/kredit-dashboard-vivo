@@ -121,11 +121,26 @@ export default function InputKreditPage() {
     }
   };
 
+  async function handleLogout() {
+    const confirmLogout = confirm("Apakah Anda yakin ingin keluar?");
+    if (!confirmLogout) return;
+    const { error } = await supabase.auth.signOut();
+    if (error) console.error(error);
+    window.location.href = "/";
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 pb-24 font-['Manrope']">
       {/* Header */}
       <div className="bg-white px-6 py-4 border-b flex items-center justify-between sticky top-0 z-10">
         <h1 className="text-xl font-bold text-[#002F6C]">Input Kredit</h1>
+        <button 
+          onClick={handleLogout}
+          className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition-all flex items-center gap-2"
+        >
+          <span className="text-xs font-bold uppercase tracking-widest">Logout</span>
+          <span className="text-lg">🚪</span>
+        </button>
       </div>
 
       <div className="max-w-md mx-auto p-4 space-y-6">
