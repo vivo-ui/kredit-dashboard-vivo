@@ -66,9 +66,9 @@ export default function IntegratedDashboard() {
   async function loadAllData() {
     setLoading(true);
     try {
-      const { data: kd, error: e1 } = await supabase.from("kredit_vast").select("*");
+      const { data: kd, error: e1 } = await supabase.from("v_kredit_vast_enriched").select("*");
       const { data: pr, error: e2 } = await supabase.from("promotors").select("*");
-      const { data: tg, error: e3 } = await supabase.from("targets").select("*");
+      const { data: tg, error: e3 } = await supabase.from("v_targets_enriched").select("*");
       const { data: st, error: e4 } = await supabase.from("sators").select("*");
       
       if (e1 || e2 || e3 || e4) console.warn("Some data fetch errors:", {e1, e2, e3, e4});
@@ -84,13 +84,14 @@ export default function IntegratedDashboard() {
       const promotorMap = new Map();
       (pr || []).forEach(p => promotorMap.set(normalize(p.nama_promotor), p));
 
-      // Enrich data with area and sator from promotors if missing
+      // Enrich data with area, sator, and toko from promotors if missing
       const enrichedKd = (kd || []).map(d => {
         const p = promotorMap.get(normalize(d.promotor));
         return { 
           ...d, 
           area: p?.area || d.area || "",
-          sator: p?.sator || d.sator || "" 
+          sator: p?.sator || d.sator || "",
+          toko: p?.nama_toko || d.toko || ""
         };
       });
 

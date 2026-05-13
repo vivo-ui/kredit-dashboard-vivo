@@ -78,10 +78,10 @@ export default function SatorDashboard() {
 
   async function loadAllData(satorName: string) {
     setLoading(true);
-    const { data: kd } = await supabase.from("kredit_vast").select("*");
+    const { data: kd } = await supabase.from("v_kredit_vast_enriched").select("*");
     const { data: pr } = await supabase.from("promotors").select("*");
     const { data: tk } = await supabase.from("tokos").select("*");
-    const { data: tg } = await supabase.from("targets").select("*");
+    const { data: tg } = await supabase.from("v_targets_enriched").select("*");
 
     const normSator = normalize(satorName);
 
@@ -94,7 +94,8 @@ export default function SatorDashboard() {
       return { 
         ...d, 
         area: p?.area || d.area || "",
-        sator: p?.sator || d.sator || "" 
+        sator: p?.sator || d.sator || "",
+        toko: p?.nama_toko || d.toko || ""
       };
     });
 
