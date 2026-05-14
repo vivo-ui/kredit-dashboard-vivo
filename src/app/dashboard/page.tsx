@@ -43,7 +43,8 @@ export default function IntegratedDashboard() {
   const [loading, setLoading] = useState(true);
 
   // Helper for consistent string matching
-  const normalize = (text: any) => (text || "").toString().trim().toLowerCase();
+  const normalize = (val: any) => (val || "").toString().trim().toLowerCase();
+  const cleanSator = (val: any) => normalize(val).replace(/^sator\s+|pic\s+/g, "");
 
   // Global Filters
   const [monthFilter, setMonthFilter] = useState("");
@@ -66,9 +67,14 @@ export default function IntegratedDashboard() {
   async function loadAllData() {
     setLoading(true);
     try {
-      const { data: kd, error: e1 } = await supabase.from("v_kredit_vast_enriched").select("*");
+      const { data: kd, error: e1 } = await supabase
+        .from("v_kredit_vast_enriched")
+        .select("*")
+        .order("tanggal", { ascending: false })
+        .limit(10000);
+        
       const { data: pr, error: e2 } = await supabase.from("promotors").select("*");
-      const { data: tg, error: e3 } = await supabase.from("v_targets_enriched").select("*");
+      const { data: tg, error: e3 } = await supabase.from("targets").select("*");
       const { data: st, error: e4 } = await supabase.from("sators").select("*");
       
       if (e1 || e2 || e3 || e4) console.warn("Some data fetch errors:", {e1, e2, e3, e4});
@@ -80,22 +86,7 @@ export default function IntegratedDashboard() {
         tk = tkAlt;
       }
 
-      // Create a map for faster lookup
-      const promotorMap = new Map();
-      (pr || []).forEach(p => promotorMap.set(normalize(p.nama_promotor), p));
-
-      // Enrich data with area, sator, and toko from promotors if missing
-      const enrichedKd = (kd || []).map(d => {
-        const p = promotorMap.get(normalize(d.promotor));
-        return { 
-          ...d, 
-          area: p?.area || d.area || "",
-          sator: p?.sator || d.sator || "",
-          toko: p?.nama_toko || d.toko || ""
-        };
-      });
-
-      setData(enrichedKd);
+      setData(kd || []);
       setPromotors(pr || []);
       setTokos(tk || []);
       setTargets(tg || []);
@@ -106,33 +97,58 @@ export default function IntegratedDashboard() {
     setLoading(false);
   }
 
-  // GLOBAL FILTER LOGIC
-  const filteredData = useMemo(() => {
-    return (data || []).filter((d) => {
-      if (!d.tanggal) return false;
-      
-      // Handle Date Range
-      if (startDate && endDate) {
-        if (d.tanggal < startDate || d.tanggal > endDate) return false;
-      }
-
-      if (monthFilter && !d.tanggal.startsWith(monthFilter)) return false;
-      if (areaFilter) {
-        if ((d.area || "").toLowerCase().trim() !== areaFilter.toLowerCase().trim()) return false;
-      }
-      if (satorFilter) {
-        return (d.sator || "").toLowerCase().trim() === satorFilter.toLowerCase().trim();
-      }
-      return true;
-    });
-  }, [data, monthFilter, areaFilter, satorFilter, startDate, endDate]);
-
   // Sync Month String with Filter or Current Date
   const currentMonthStr = useMemo(() => {
     if (monthFilter) return monthFilter;
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   }, [monthFilter]);
+
+  // GLOBAL FILTER LOGIC
+  const filteredData = useMemo(() => {
+    return (data || []).filter((d) => {
+      if (!d.tanggal) return false;
+      
+      // Handle Date Range (Normalize to YYYY-MM-DD to ignore time components)
+      const recordDate = (d.tanggal || "").substring(0, 10);
+      if (startDate && endDate) {
+        if (recordDate < startDate || recordDate > endDate) return false;
+      }
+
+      // Handle Month Filter
+      if (monthFilter) {
+        if (!recordDate.startsWith(monthFilter)) return false;
+      } else if (!startDate && !endDate) {
+        // Default to current month if no filters are set
+        if (!recordDate.startsWith(currentMonthStr)) return false;
+      }
+
+      // Robust Column Selection (Fallback System)
+      const dArea = d.area_master || d.area_enriched || d.p_area || d.area || "";
+      const dSator = d.sator_master || d.sator_enriched || d.p_sator || d.sator || "";
+      const dPromotor = d.promotor || "";
+
+      // Last Resort: Client-side lookup if view enrichment failed
+      let finalArea = dArea;
+      let finalSator = dSator;
+      
+      if (!finalArea || !finalSator) {
+        const p = (promotors || []).find(x => normalize(x.nama_promotor) === normalize(dPromotor));
+        if (p) {
+          if (!finalArea) finalArea = p.area;
+          if (!finalSator) finalSator = p.sator;
+        }
+      }
+
+      if (areaFilter) {
+        if (normalize(finalArea) !== normalize(areaFilter)) return false;
+      }
+      if (satorFilter) {
+        return cleanSator(finalSator) === cleanSator(satorFilter);
+      }
+      return true;
+    });
+  }, [data, monthFilter, areaFilter, satorFilter, startDate, endDate, currentMonthStr, promotors]);
 
   // ACCUMULATED TOTAL TARGET LOGIC
   const globalTarget = useMemo(() => {
@@ -194,17 +210,42 @@ export default function IntegratedDashboard() {
     ? Math.round((globalPencapaian / displayTarget) * 100) 
     : 0;
 
-  // SATOR LOGIC
+  // SATOR LOGIC - Dynamic (Include anyone who has data)
   const satorStats = useMemo(() => {
-      const filteredSators = sators.filter(s => {
-         if (areaFilter && (s.area || "").toLowerCase().trim() !== areaFilter.toLowerCase().trim()) return false;
-         if (satorFilter && (s.nama_sator || "").toLowerCase().trim() !== satorFilter.toLowerCase().trim()) return false;
-         return true;
-      });
+    // 1. Get all unique sator names from data
+    const dataSatorNames = Array.from(new Set(filteredData.map(d => {
+       return d.sator_master || d.sator_enriched || d.p_sator || d.sator || "";
+    }))).filter(Boolean);
 
-    return filteredSators.map((s) => {
-      const sName = s.nama_sator?.toLowerCase().trim();
-      const sData = (filteredData || []).filter((d) => (d.sator || "").toLowerCase().trim() === sName);
+    // 2. Get master sator names
+    const masterSators = (sators || []).filter(s => {
+       if (areaFilter && normalize(s.area) !== normalize(areaFilter)) return false;
+       if (satorFilter && cleanSator(s.nama_sator) !== cleanSator(satorFilter)) return false;
+       return true;
+    });
+
+    // 3. Combine both lists
+    const allSatorNames = Array.from(new Set([
+       ...masterSators.map(s => s.nama_sator),
+       ...dataSatorNames
+    ])).filter(Boolean);
+
+    // 4. If satorFilter is active, only show that one
+    let finalSatorList = allSatorNames;
+    if (satorFilter) {
+       finalSatorList = allSatorNames.filter(name => cleanSator(name) === cleanSator(satorFilter));
+    }
+
+    return finalSatorList.map((sName) => {
+      const sMaster = (sators || []).find(m => cleanSator(m.nama_sator) === cleanSator(sName));
+      const sData = (filteredData || []).filter((d) => {
+          const dSator = d.sator_master || d.sator_enriched || d.p_sator || d.sator || "";
+          if (!dSator) {
+             const p = (promotors || []).find(x => normalize(x.nama_promotor) === normalize(d.promotor));
+             return cleanSator(p?.sator) === cleanSator(sName);
+          }
+          return cleanSator(dSator) === cleanSator(sName);
+      });
       
       const closing = sData.filter((d) => (d.status || "").toLowerCase().includes("clos")).length;
       const pending = sData.filter((d) => (d.status || "").toLowerCase().includes("pend")).length;
@@ -215,7 +256,7 @@ export default function IntegratedDashboard() {
       const rawTarget = (targets || []).filter(t => {
         const p = (promotors || []).find(x => normalize(x.nama_promotor) === normalize(t.promotor));
         const tBulan = (t.bulan || "").toString().trim();
-        return p?.sator?.toLowerCase().trim() === sName && tBulan.startsWith(currentMonthStr);
+        return cleanSator(p?.sator || "") === cleanSator(sName) && tBulan.startsWith(currentMonthStr);
       }).reduce((sum, t) => sum + (Number(t.target) || 0), 0);
 
       const sTarget = (startDate && endDate) 
@@ -225,32 +266,48 @@ export default function IntegratedDashboard() {
       const percent = sTarget > 0 ? Math.round((count / sTarget) * 100) : 0;
       const approvalRate = count > 0 ? Math.round(((pending + closing) / count) * 100) : 0;
 
-      return { ...s, count, closing, pending, reject, sTarget, percent, approvalRate };
+      return { 
+        id: sMaster?.id || sName,
+        nama_sator: sName,
+        area: sMaster?.area || "Uncategorized",
+        count, closing, pending, reject, sTarget, percent, approvalRate 
+      };
     }).sort((a, b) => b.percent - a.percent);
   }, [sators, filteredData, targets, promotors, currentMonthStr, areaFilter, satorFilter, daysInMonth, startDate, endDate, rangeDays]);
 
-  // TEAM LOGIC
+  // TEAM LOGIC - Dynamic (Include anyone who has data)
   const teamStats = useMemo(() => {
-      let filteredPromotors = promotors || [];
-      if (areaFilter) {
-         filteredPromotors = filteredPromotors.filter(p => normalize(p.area) === normalize(areaFilter));
-      }
-      if (satorFilter) {
-         filteredPromotors = filteredPromotors.filter(p => normalize(p.sator) === normalize(satorFilter));
-      }
+    // 1. Get unique promotor names from data
+    const dataPromotorNames = Array.from(new Set(filteredData.map(d => d.promotor))).filter(Boolean);
+    
+    // 2. Get master promotors
+    let masterPromotors = promotors || [];
+    if (areaFilter) {
+      masterPromotors = masterPromotors.filter(p => normalize(p.area) === normalize(areaFilter));
+    }
+    if (satorFilter) {
+      masterPromotors = masterPromotors.filter(p => cleanSator(p.sator) === cleanSator(satorFilter));
+    }
 
-    return filteredPromotors.map((p) => {
-      const pName = normalize(p.nama_promotor);
-      const pData = (filteredData || []).filter((d) => normalize(d.promotor) === pName);
+    // 3. Combine
+    const allPromotorNames = Array.from(new Set([
+       ...masterPromotors.map(p => p.nama_promotor),
+       ...dataPromotorNames
+    ])).filter(Boolean);
+
+    return allPromotorNames.map((pName) => {
+      const pMaster = (promotors || []).find(m => normalize(m.nama_promotor) === normalize(pName));
+      const pData = filteredData.filter((d) => normalize(d.promotor) === normalize(pName));
+      
       const closing = pData.filter((d) => (d.status || "").toLowerCase().includes("clos")).length;
       const pending = pData.filter((d) => (d.status || "").toLowerCase().includes("pend")).length;
       const reject = pData.filter((d) => (d.status || "").toLowerCase().includes("rej")).length;
       const count = closing + pending + reject;
 
-      const rawTarget = (targets || []).find(t => {
+      const rawTarget = (targets || []).filter((t) => {
         const tBulan = (t.bulan || "").toString().trim();
-        return normalize(t.promotor) === pName && tBulan.startsWith(currentMonthStr);
-      })?.target || 0;
+        return normalize(t.promotor) === normalize(pName) && tBulan.startsWith(currentMonthStr);
+      }).reduce((sum, t) => sum + (Number(t.target) || 0), 0);
 
       const pTarget = (startDate && endDate) 
         ? Math.round((rawTarget / daysInMonth) * rangeDays)
@@ -259,29 +316,33 @@ export default function IntegratedDashboard() {
       const approvalRate = count > 0 ? Math.round(((pending + closing) / count) * 100) : 0;
       const progress = pTarget > 0 ? Math.round((count / pTarget) * 100) : 0;
 
-      return { ...p, count, closing, pending, reject, pTarget, approvalRate, progress };
+      return { 
+        id: pMaster?.id || pName,
+        nama_promotor: pName,
+        nama_toko: pMaster?.nama_toko || pData[0]?.toko || "Unmapped Store",
+        area: pMaster?.area || "Unmapped Area",
+        sator: pMaster?.sator || "Unmapped Sator",
+        count, closing, pending, reject, pTarget, approvalRate, progress 
+      };
     }).sort((a, b) => b.progress - a.progress);
   }, [promotors, filteredData, targets, currentMonthStr, areaFilter, satorFilter, daysInMonth, startDate, endDate, rangeDays]);
 
-
   const dealerStats = useMemo(() => {
-    // SMART FALLBACK: If tokos table is empty, generate from unique names in data & targets
-    let sourceTokos = tokos || [];
-    const sourceData = data || [];
+    const sourceData = filteredData || [];
     const sourcePromotors = promotors || [];
+    let sourceTokos = [...(tokos || [])];
 
-    if (!sourceTokos.length && sourceData.length) {
-      const uniqueNames = Array.from(new Set([
-        ...sourceData.map(d => d.toko),
-        ...sourcePromotors.map(p => p.nama_toko)
-      ])).filter(Boolean);
-      
-      sourceTokos = uniqueNames.map(name => ({
-        nama_toko: name,
-        area: sourcePromotors.find(p => normalize(p.nama_toko) === normalize(name))?.area || "Global",
-        sator: sourcePromotors.find(p => normalize(p.nama_toko) === normalize(name))?.sator || "Global"
-      }));
-    }
+    // Combine with unique names from data
+    const dataTokoNames = Array.from(new Set(sourceData.map(d => d.toko))).filter(Boolean);
+    dataTokoNames.forEach(tn => {
+      if (!sourceTokos.some(t => normalize(t.nama_toko) === normalize(tn))) {
+        sourceTokos.push({
+          nama_toko: tn,
+          area: sourcePromotors.find(p => normalize(p.nama_toko) === normalize(tn))?.area || "Global",
+          sator: sourceData.find(d => normalize(d.toko) === normalize(tn))?.sator || "Global"
+        });
+      }
+    });
 
     if (!sourceTokos.length) return [];
 
@@ -540,7 +601,10 @@ export default function IntegratedDashboard() {
       
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12">
         <div className="flex items-center gap-4">
-           <div className="w-14 h-14 bg-[#aec6ff] rounded-2xl flex items-center justify-center text-[#0c1321] shadow-2xl shadow-[#aec6ff]/20">
+          <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest bg-white/5 px-3 py-1.5 rounded-lg border border-white/10">
+             Data: {data.length} | Filtered: {filteredData.length}
+          </div>
+          <div className="w-14 h-14 bg-[#aec6ff] rounded-2xl flex items-center justify-center text-[#0c1321] shadow-2xl shadow-[#aec6ff]/20">
               <span className="text-2xl font-black">VF</span>
            </div>
            <div>

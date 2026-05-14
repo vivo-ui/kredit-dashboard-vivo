@@ -74,34 +74,31 @@ export default function SatorDashboard() {
     loadAllData(savedName);
   }, [router]);
 
-  const normalize = (text: any) => (text || "").toString().trim().toLowerCase();
+  const normalize = (val: any) => (val || "").toString().trim().toLowerCase();
+  const cleanSator = (val: any) => normalize(val).replace(/^sator\s+|pic\s+/g, "");
 
   async function loadAllData(satorName: string) {
     setLoading(true);
-    const { data: kd } = await supabase.from("v_kredit_vast_enriched").select("*");
+    const { data: kd } = await supabase
+      .from("v_kredit_vast_enriched")
+      .select("*")
+      .order("tanggal", { ascending: false })
+      .limit(10000);
+
     const { data: pr } = await supabase.from("promotors").select("*");
     const { data: tk } = await supabase.from("tokos").select("*");
-    const { data: tg } = await supabase.from("v_targets_enriched").select("*");
+    const { data: tg } = await supabase.from("targets").select("*");
 
-    const normSator = normalize(satorName);
-
-    // PROACTIVE ENRICHMENT (Consistency Fix)
-    const promotorMap = new Map();
-    (pr || []).forEach(p => promotorMap.set(normalize(p.nama_promotor), p));
-
-    const enrichedKd = (kd || []).map(d => {
-      const p = promotorMap.get(normalize(d.promotor));
-      return { 
-        ...d, 
-        area: p?.area || d.area || "",
-        sator: p?.sator || d.sator || "",
-        toko: p?.nama_toko || d.toko || ""
-      };
+    const picData = (kd || []).filter(d => {
+       const dSator = d.sator_master || d.sator_enriched || d.p_sator || d.sator || "";
+       if (!dSator) {
+         const p = (pr || []).find(x => normalize(x.nama_promotor) === normalize(d.promotor));
+         return cleanSator(p?.sator).includes(cleanSator(satorName));
+       }
+       return cleanSator(dSator).includes(cleanSator(satorName));
     });
-
-    const picData = enrichedKd.filter(d => normalize(d.sator).includes(normSator));
-    const picPromotors = (pr || []).filter(p => normalize(p.sator).includes(normSator));
-    const picTokos = (tk || []).filter(t => normalize(t.sator).includes(normSator));
+    const picPromotors = (pr || []).filter(p => cleanSator(p.sator).includes(cleanSator(satorName)));
+    const picTokos = (tk || []).filter(t => cleanSator(t.sator).includes(cleanSator(satorName)));
 
     setData(picData);
     setPromotors(picPromotors);
@@ -119,23 +116,27 @@ export default function SatorDashboard() {
     router.push("/login");
   };
 
-  const filteredData = useMemo(() => {
-    return data.filter((d) => {
-      // Range filter
-      if (startDate && endDate) {
-        if (d.tanggal < startDate || d.tanggal > endDate) return false;
-      }
-      
-      if (monthFilter && !d.tanggal.startsWith(monthFilter)) return false;
-      return true;
-    });
-  }, [data, monthFilter, startDate, endDate]);
-
   const currentMonthStr = useMemo(() => {
     if (monthFilter) return monthFilter;
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   }, [monthFilter]);
+
+  const filteredData = useMemo(() => {
+    return data.filter((d) => {
+      const recordDate = (d.tanggal || "").substring(0, 10);
+      if (startDate && endDate) {
+        if (recordDate < startDate || recordDate > endDate) return false;
+      }
+      
+      if (monthFilter) {
+        if (!recordDate.startsWith(monthFilter)) return false;
+      } else if (!startDate && !endDate) {
+        if (!recordDate.startsWith(currentMonthStr)) return false;
+      }
+      return true;
+    });
+  }, [data, monthFilter, startDate, endDate, currentMonthStr]);
 
   // 1. CALCULATIONS (Respecting Filters)
   const filteredClosing = filteredData.filter((d) => (d.status || "").toLowerCase().includes("clos")).length;
@@ -177,7 +178,16 @@ export default function SatorDashboard() {
   const achievementPercent = picTarget > 0 ? Math.round((filteredTotal / picTarget) * 100) : 0;
 
   const teamStats = useMemo(() => {
-    return promotors.map((p) => {
+    let sourcePromotors = [...promotors];
+    const dataPromotors = Array.from(new Set(filteredData.map(d => d.promotor))).filter(Boolean);
+    
+    dataPromotors.forEach(dp => {
+      if (!sourcePromotors.some(p => normalize(p.nama_promotor) === normalize(dp))) {
+        sourcePromotors.push({ nama_promotor: dp, nama_toko: filteredData.find(d => d.promotor === dp)?.toko || "Unknown" });
+      }
+    });
+
+    return sourcePromotors.map((p) => {
       const pName = normalize(p.nama_promotor);
       const pData = filteredData.filter((d) => normalize(d.promotor) === pName);
       const closing = pData.filter((d) => (d.status || "").toLowerCase().includes("clos")).length;
@@ -198,7 +208,19 @@ export default function SatorDashboard() {
   }, [promotors, filteredData, targets, currentMonthStr, startDate, endDate, rangeDays, daysInMonth]);
 
   const dealerStats = useMemo(() => {
-    return tokos.map((t) => {
+    let sourceTokos = [...tokos];
+    const dataTokoNames = Array.from(new Set(filteredData.map(d => d.toko))).filter(Boolean);
+
+    dataTokoNames.forEach(tn => {
+      if (!sourceTokos.some(t => normalize(t.nama_toko) === normalize(tn))) {
+        sourceTokos.push({
+          nama_toko: tn,
+          sator: filteredData.find(d => normalize(d.toko) === normalize(tn))?.sator || "Global"
+        });
+      }
+    });
+
+    return sourceTokos.map((t) => {
       const tName = normalize(t.nama_toko);
       const tData = filteredData.filter((d) => normalize(d.toko) === tName);
       const closing = tData.filter((d) => (d.status || "").toLowerCase().includes("clos")).length;
@@ -206,22 +228,28 @@ export default function SatorDashboard() {
       const reject = tData.filter((d) => (d.status || "").toLowerCase().includes("rej")).length;
       const count = closing + pending + reject;
 
-      const rawTarget = targets.filter(tg => {
-        const p = promotors.find(x => normalize(x.nama_promotor) === normalize(tg.promotor));
-        return normalize(p?.nama_toko) === tName && (tg.bulan || "").trim() === currentMonthStr;
-      }).reduce((sum, tg) => sum + (tg.target || 0), 0);
-      
+      // Shop target is sum of promoter targets in this shop
+      const shopPromotors = (promotors || []).filter(p => normalize(p.nama_toko) === normalize(tName));
+      const rawTarget = (targets || []).filter((t) => {
+        const tBulan = (t.bulan || "").toString().trim();
+        const p = shopPromotors.find(sp => normalize(sp.nama_promotor) === normalize(t.promotor));
+        return p && tBulan.startsWith(currentMonthStr);
+      }).reduce((sum, t) => sum + (Number(t.target) || 0), 0);
+
       const tTarget = (startDate && endDate) 
         ? Math.round((rawTarget / daysInMonth) * rangeDays)
         : rawTarget;
 
-      const progress = tTarget > 0 ? Math.round((count / tTarget) * 100) : 0;
-      const rate = count > 0 ? Math.round(((closing + pending) / count) * 100) : 0;
-      
-      return { ...t, count, closing, pending, reject, tTarget, progress, rate };
-    }).sort((a, b) => b.progress - a.progress);
-  }, [tokos, filteredData, targets, promotors, currentMonthStr, startDate, endDate, rangeDays, daysInMonth]);
+      const percent = tTarget > 0 ? Math.round((count / tTarget) * 100) : 0;
+      const approvalRate = count > 0 ? Math.round(((pending + closing) / count) * 100) : 0;
 
+      return {
+        ...t,
+        nama_toko: t.nama_toko,
+        count, closing, pending, reject, tTarget, percent, approvalRate
+      };
+    }).sort((a, b) => b.percent - a.percent);
+  }, [tokos, filteredData, targets, promotors, currentMonthStr, daysInMonth, startDate, endDate, rangeDays]);
 
   const chartData = useMemo(() => {
     const groups: any = {};
@@ -375,9 +403,17 @@ export default function SatorDashboard() {
                <p className="text-[11px] font-black uppercase tracking-[0.5em] text-[#aec6ff]/40 mb-4">
                   {startDate && endDate ? `Range Target Progress (${startDate} - ${endDate})` : `Pencapaian Area vs Target`}
                </p>
-               <div className="flex items-baseline gap-4 mb-8">
-                  <h2 className="text-8xl font-black tracking-tighter text-[#aec6ff]">{filteredTotal}</h2>
-                  <span className="text-2xl font-bold text-white/10">/ {picTarget} Target</span>
+               <div className="flex items-center justify-between mb-8">
+                  <div className="flex items-center gap-4">
+                    <div className="text-[10px] font-bold text-slate-400 bg-slate-800/50 px-3 py-1.5 rounded-lg border border-slate-700">
+                      Records: {data.length} | Shown: {filteredData.length}
+                    </div>
+                    <h1 className="text-2xl font-black text-white tracking-tight uppercase">{picName}</h1>
+                  </div>
+                  <div className="flex items-baseline gap-4">
+                    <h2 className="text-8xl font-black tracking-tighter text-[#aec6ff]">{filteredTotal}</h2>
+                    <span className="text-2xl font-bold text-white/10">/ {picTarget} Target</span>
+                  </div>
                </div>
                <div className="space-y-4 max-w-lg relative z-10">
                  <div className="flex justify-between text-[11px] font-black uppercase tracking-widest">
