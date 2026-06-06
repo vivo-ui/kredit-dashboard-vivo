@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "../../lib/supabaseClient";
 
 // Debounce hook untuk cek duplikat saat mengetik
@@ -16,6 +16,12 @@ export default function InputKreditPage() {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
+
+  // Photo attachment states
+  const [fotoBukti, setFotoBukti] = useState<File | null>(null);
+  const [fotoPreview, setFotoPreview] = useState<string | null>(null);
+  const [uploadingFoto, setUploadingFoto] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Duplicate detection states
   const [duplicateByName, setDuplicateByName] = useState<any[]>([]);
@@ -114,6 +120,52 @@ export default function InputKreditPage() {
     if (data) setPromotors(data);
   }
 
+  // Handle photo selection
+  const handleFotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validasi ukuran max 5MB
+    if (file.size > 5 * 1024 * 1024) {
+      setErrorMsg("Ukuran foto maksimal 5MB");
+      return;
+    }
+
+    setFotoBukti(file);
+    const previewUrl = URL.createObjectURL(file);
+    setFotoPreview(previewUrl);
+  };
+
+  const handleRemoveFoto = () => {
+    setFotoBukti(null);
+    setFotoPreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  // Upload foto ke Supabase Storage
+  async function uploadFotoToStorage(file: File): Promise<string | null> {
+    setUploadingFoto(true);
+    const ext = file.name.split(".").pop();
+    const fileName = `bukti-${Date.now()}-${Math.random().toString(36).substring(2, 8)}.${ext}`;
+
+    const { error } = await supabase.storage
+      .from("bukti-limit")
+      .upload(fileName, file, { upsert: false });
+
+    setUploadingFoto(false);
+
+    if (error) {
+      console.error("Upload foto error:", error);
+      return null;
+    }
+
+    const { data: publicData } = supabase.storage
+      .from("bukti-limit")
+      .getPublicUrl(fileName);
+
+    return publicData?.publicUrl ?? null;
+  }
+
   // Handle Form Submission
   const handleSubmit = async () => {
     if (loading) return;
@@ -133,6 +185,17 @@ export default function InputKreditPage() {
 
     setLoading(true);
 
+    // Upload foto jika ada
+    let fotoUrl: string | null = null;
+    if (fotoBukti) {
+      fotoUrl = await uploadFotoToStorage(fotoBukti);
+      if (!fotoUrl) {
+        setErrorMsg("Gagal mengupload foto. Coba lagi.");
+        setLoading(false);
+        return;
+      }
+    }
+
     const payload = {
       tanggal: formData.tanggal,
       sator: formData.sator,
@@ -147,7 +210,8 @@ export default function InputKreditPage() {
       limit_kredit: formData.limit_kredit ? parseInt(formData.limit_kredit.toString()) : 0,
       status: formData.status,
       alasan_pending: formData.status === 'Pending' ? formData.alasan_pending : null,
-      keterangan_reject: formData.status === 'Reject' ? formData.keterangan_reject : null
+      keterangan_reject: formData.status === 'Reject' ? formData.keterangan_reject : null,
+      foto_bukti_url: fotoUrl
     };
 
     const { error } = await supabase
@@ -163,6 +227,9 @@ export default function InputKreditPage() {
       setSuccessMsg("Data berhasil disimpan!");
       setDuplicateByName([]);
       setDuplicateByPhone([]);
+      setFotoBukti(null);
+      setFotoPreview(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
       setFormData(prev => ({
         ...prev,
         konsumen: "",
@@ -424,6 +491,59 @@ export default function InputKreditPage() {
               />
             </div>
           </div>
+
+          {/* Foto Bukti Pengecekan Limit */}
+          <div>
+            <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase">Foto Bukti Pengecekan Limit</label>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={handleFotoChange}
+            />
+
+            {!fotoPreview ? (
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full border-2 border-dashed border-slate-200 rounded-xl p-6 flex flex-col items-center justify-center gap-2 bg-slate-50 hover:bg-slate-100 hover:border-[#002F6C] transition-all group"
+              >
+                <span className="text-3xl">📷</span>
+                <span className="text-xs font-bold text-slate-400 group-hover:text-[#002F6C] transition-colors">Tap untuk ambil / pilih foto</span>
+                <span className="text-[10px] text-slate-300">JPG, PNG – Maks. 5MB</span>
+              </button>
+            ) : (
+              <div className="relative rounded-xl overflow-hidden border border-slate-200">
+                <img
+                  src={fotoPreview}
+                  alt="Preview bukti limit"
+                  className="w-full object-cover max-h-52"
+                />
+                <div className="absolute top-2 right-2 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="bg-white/90 backdrop-blur-sm text-[10px] font-bold text-[#002F6C] px-3 py-1.5 rounded-lg shadow-sm hover:bg-white transition-all"
+                  >
+                    🔄 Ganti
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleRemoveFoto}
+                    className="bg-white/90 backdrop-blur-sm text-[10px] font-bold text-rose-500 px-3 py-1.5 rounded-lg shadow-sm hover:bg-white transition-all"
+                  >
+                    🗑️ Hapus
+                  </button>
+                </div>
+                <div className="bg-green-50 border-t border-green-100 px-3 py-2 flex items-center gap-2">
+                  <span className="text-green-500 text-sm">✅</span>
+                  <span className="text-xs font-medium text-green-700 truncate">{fotoBukti?.name}</span>
+                </div>
+              </div>
+            )}
+          </div>
         </section>
 
         {/* Section 4: Status */}
@@ -483,14 +603,16 @@ export default function InputKreditPage() {
         </button>
         <button
           onClick={handleSubmit}
-          disabled={loading}
+          disabled={loading || uploadingFoto}
           className={`flex-[2.5] py-4 rounded-2xl font-bold flex items-center justify-center gap-3 shadow-lg active:scale-95 transition-all ${
             allDuplicates.length > 0
               ? "bg-amber-500 shadow-amber-500/20 text-white"
               : "bg-[#002F6C] shadow-[#002F6C]/20 text-white"
           }`}
         >
-          {loading ? (
+          {uploadingFoto ? (
+            <span className="animate-pulse">⬆️ Mengupload foto...</span>
+          ) : loading ? (
             <span className="animate-pulse">Menyimpan...</span>
           ) : allDuplicates.length > 0 ? (
             <>
