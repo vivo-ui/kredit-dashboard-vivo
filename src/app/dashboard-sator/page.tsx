@@ -261,11 +261,74 @@ export default function SatorDashboard() {
   }, [filteredData]);
 
   const exportExcel = () => {
-    const ws = XLSX.utils.json_to_sheet(filteredData);
+    // Build per-promotor summary rows matching the required format:
+    // AREA | SATOR | PROMOTOR | TARGET | INPUT | CAPAIAN | CLOSING | PENDING | REJECT | TOTAL | RATE APPROVAL
+    const rows = teamStats.map((p) => {
+      const input   = p.count;                    // total submissions (closing+pending+reject)
+      const capaian = p.closing + p.pending;       // approved + pending = "lolos awal"
+      const total   = p.count;                    // same as input
+      const rate    = total > 0 ? `${Math.round((capaian / total) * 100)}%` : "0%";
+
+      return {
+        "AREA"          : picArea || "-",
+        "SATOR"         : picName || "-",
+        "PROMOTOR"      : p.nama_promotor || "-",
+        "TARGET"        : p.pTarget,
+        "INPUT"         : input,
+        "CAPAIAN"       : capaian,
+        "CLOSING"       : p.closing,
+        "PENDING"       : p.pending,
+        "REJECT"        : p.reject,
+        "TOTAL"         : total,
+        "RATE APPROVAL" : rate,
+      };
+    });
+
+    // Grand-total summary row
+    const totalInput    = rows.reduce((s, r) => s + (r["INPUT"]   as number), 0);
+    const totalCapaian  = rows.reduce((s, r) => s + (r["CAPAIAN"] as number), 0);
+    const totalClosing  = rows.reduce((s, r) => s + (r["CLOSING"] as number), 0);
+    const totalPending  = rows.reduce((s, r) => s + (r["PENDING"] as number), 0);
+    const totalReject   = rows.reduce((s, r) => s + (r["REJECT"]  as number), 0);
+    const totalTarget   = rows.reduce((s, r) => s + (r["TARGET"]  as number), 0);
+    const grandRate     = totalInput > 0 ? `${Math.round((totalCapaian / totalInput) * 100)}%` : "0%";
+
+    rows.push({
+      "AREA"          : "TOTAL",
+      "SATOR"         : "",
+      "PROMOTOR"      : "",
+      "TARGET"        : totalTarget,
+      "INPUT"         : totalInput,
+      "CAPAIAN"       : totalCapaian,
+      "CLOSING"       : totalClosing,
+      "PENDING"       : totalPending,
+      "REJECT"        : totalReject,
+      "TOTAL"         : totalInput,
+      "RATE APPROVAL" : grandRate,
+    });
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+
+    // Set column widths for readability
+    ws["!cols"] = [
+      { wch: 14 }, // AREA
+      { wch: 20 }, // SATOR
+      { wch: 24 }, // PROMOTOR
+      { wch: 8  }, // TARGET
+      { wch: 8  }, // INPUT
+      { wch: 10 }, // CAPAIAN
+      { wch: 10 }, // CLOSING
+      { wch: 10 }, // PENDING
+      { wch: 8  }, // REJECT
+      { wch: 8  }, // TOTAL
+      { wch: 16 }, // RATE APPROVAL
+    ];
+
     const wb = XLSX.utils.book_new();
+    const period = monthFilter || (startDate && endDate ? `${startDate}_${endDate}` : currentMonthStr);
     XLSX.utils.book_append_sheet(wb, ws, "Sator_Report");
     const buffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-    saveAs(new Blob([buffer]), `Ledger_Report_${picName}.xlsx`);
+    saveAs(new Blob([buffer]), `Laporan_Sator_${picName}_${period}.xlsx`);
   };
 
   if (loading) return (
