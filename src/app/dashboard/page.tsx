@@ -579,14 +579,89 @@ export default function IntegratedDashboard() {
     return Object.keys(groups).map(date => ({ date, count: groups[date] }));
   }, [filteredData]);
 
-  const exportExcel = () => {
+  // Export 1: Raw database dump (semua kolom dari filteredData)
+  const exportDatabase = () => {
     const ws = XLSX.utils.json_to_sheet(filteredData);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Financial_Report");
+    const period = monthFilter || (startDate && endDate ? `${startDate}_${endDate}` : currentMonthStr);
+    XLSX.utils.book_append_sheet(wb, ws, "Database");
     const buffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-    const now = new Date();
-    const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    saveAs(new Blob([buffer]), `VF_Report_${dateStr}.xlsx`);
+    saveAs(new Blob([buffer]), `Database_${period}.xlsx`);
+  };
+
+  // Export 2: Rekap per promotor
+  const exportRekap = () => {
+    const period = monthFilter
+      ? monthFilter
+      : (startDate && endDate ? `${startDate} s/d ${endDate}` : currentMonthStr);
+
+    const rows = teamStats.map((p) => {
+      const total     = p.closing + p.pending + p.reject;
+      const pencapaian = p.closing + p.pending;          // lolos awal (ACC + Pending)
+      const rate      = total > 0 ? `${Math.round((pencapaian / total) * 100)}%` : "0%";
+      const achieve   = p.pTarget > 0 ? `${Math.round((total / p.pTarget) * 100)}%` : "0%";
+      return {
+        "AREA"             : p.area  || "-",
+        "SATOR"            : p.sator || "-",
+        "NAMA PROMOTOR"    : p.nama_promotor || "-",
+        "TARGET"           : p.pTarget,
+        "JUMLAH PENGAJUAN" : total,
+        "PENCAPAIAN"       : pencapaian,
+        "ACHIEVEMENT"      : achieve,
+        "CLOSING"          : p.closing,
+        "PENDING"          : p.pending,
+        "REJECT"           : p.reject,
+        "RATE APPROVAL"    : rate,
+      };
+    });
+
+    // Baris TOTAL
+    const totTarget    = rows.reduce((s, r) => s + (r["TARGET"]           as number), 0);
+    const totPengajuan = rows.reduce((s, r) => s + (r["JUMLAH PENGAJUAN"] as number), 0);
+    const totPencapaian= rows.reduce((s, r) => s + (r["PENCAPAIAN"]       as number), 0);
+    const totClosing   = rows.reduce((s, r) => s + (r["CLOSING"]          as number), 0);
+    const totPending   = rows.reduce((s, r) => s + (r["PENDING"]          as number), 0);
+    const totReject    = rows.reduce((s, r) => s + (r["REJECT"]           as number), 0);
+    const grandAchieve = totTarget > 0 ? `${Math.round((totPengajuan / totTarget) * 100)}%` : "0%";
+    const grandRate    = totPengajuan > 0 ? `${Math.round((totPencapaian / totPengajuan) * 100)}%` : "0%";
+
+    rows.push({
+      "AREA"             : "TOTAL",
+      "SATOR"            : "",
+      "NAMA PROMOTOR"    : "",
+      "TARGET"           : totTarget,
+      "JUMLAH PENGAJUAN" : totPengajuan,
+      "PENCAPAIAN"       : totPencapaian,
+      "ACHIEVEMENT"      : grandAchieve,
+      "CLOSING"          : totClosing,
+      "PENDING"          : totPending,
+      "REJECT"           : totReject,
+      "RATE APPROVAL"    : grandRate,
+    });
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    // Add period info in cell A1 before data — use sheet_add_aoa to prepend
+    XLSX.utils.sheet_add_aoa(ws, [[`Periode: ${period}`]], { origin: -1 });
+
+    ws["!cols"] = [
+      { wch: 12 }, // AREA
+      { wch: 20 }, // SATOR
+      { wch: 26 }, // NAMA PROMOTOR
+      { wch: 10 }, // TARGET
+      { wch: 18 }, // JUMLAH PENGAJUAN
+      { wch: 14 }, // PENCAPAIAN
+      { wch: 14 }, // ACHIEVEMENT
+      { wch: 10 }, // CLOSING
+      { wch: 10 }, // PENDING
+      { wch: 10 }, // REJECT
+      { wch: 16 }, // RATE APPROVAL
+    ];
+
+    const wb = XLSX.utils.book_new();
+    const fileperiod = monthFilter || (startDate && endDate ? `${startDate}_${endDate}` : currentMonthStr);
+    XLSX.utils.book_append_sheet(wb, ws, "Rekap_Promotor");
+    const buffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    saveAs(new Blob([buffer]), `Rekap_Promotor_${fileperiod}.xlsx`);
   };
 
   if (loading) return (
@@ -645,8 +720,19 @@ export default function IntegratedDashboard() {
                  })}
               </select>
            </div>
-           <button onClick={exportExcel} className="p-4 bg-[#aec6ff] text-[#0c1321] rounded-2xl hover:scale-110 active:scale-95 transition-all shadow-xl shadow-[#aec6ff]/10">
-              <span className="material-icons-outlined">download</span>
+           <button
+              onClick={exportDatabase}
+              title="Export Database (Data Mentah)"
+              className="p-4 bg-white/5 border border-white/10 text-[#aec6ff] rounded-2xl hover:bg-white/10 active:scale-95 transition-all"
+           >
+              <span className="material-icons-outlined">storage</span>
+           </button>
+           <button
+              onClick={exportRekap}
+              title="Export Rekap Promotor"
+              className="p-4 bg-[#aec6ff] text-[#0c1321] rounded-2xl hover:scale-110 active:scale-95 transition-all shadow-xl shadow-[#aec6ff]/10"
+           >
+              <span className="material-icons-outlined">bar_chart</span>
            </button>
            <button onClick={handleLogout} className="p-4 bg-rose-500/10 text-rose-500 border border-rose-500/20 rounded-2xl hover:bg-rose-500 hover:text-white transition-all">
               <span className="material-icons-outlined">logout</span>

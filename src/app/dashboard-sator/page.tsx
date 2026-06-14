@@ -260,75 +260,88 @@ export default function SatorDashboard() {
     return Object.keys(groups).map(date => ({ date, count: groups[date] }));
   }, [filteredData]);
 
-  const exportExcel = () => {
-    // Build per-promotor summary rows matching the required format:
-    // AREA | SATOR | PROMOTOR | TARGET | INPUT | CAPAIAN | CLOSING | PENDING | REJECT | TOTAL | RATE APPROVAL
-    const rows = teamStats.map((p) => {
-      const input   = p.count;                    // total submissions (closing+pending+reject)
-      const capaian = p.closing + p.pending;       // approved + pending = "lolos awal"
-      const total   = p.count;                    // same as input
-      const rate    = total > 0 ? `${Math.round((capaian / total) * 100)}%` : "0%";
+  // Export 1: Raw database dump (semua kolom dari filteredData)
+  const exportDatabase = () => {
+    const ws = XLSX.utils.json_to_sheet(filteredData);
+    const wb = XLSX.utils.book_new();
+    const period = monthFilter || (startDate && endDate ? `${startDate}_${endDate}` : currentMonthStr);
+    XLSX.utils.book_append_sheet(wb, ws, "Database");
+    const buffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    saveAs(new Blob([buffer]), `Database_${picName}_${period}.xlsx`);
+  };
 
+  // Export 2: Rekap per promotor (AREA | SATOR | NAMA PROMOTOR | TARGET | JUMLAH PENGAJUAN | PENCAPAIAN | ACHIEVEMENT | CLOSING | PENDING | REJECT | RATE APPROVAL)
+  const exportRekap = () => {
+    const period = monthFilter
+      ? monthFilter
+      : (startDate && endDate ? `${startDate} s/d ${endDate}` : currentMonthStr);
+
+    const rows = teamStats.map((p) => {
+      const total      = p.closing + p.pending + p.reject;
+      const pencapaian = p.closing + p.pending;           // ACC + Pending
+      const rate       = total > 0 ? `${Math.round((pencapaian / total) * 100)}%` : "0%";
+      const achieve    = p.pTarget > 0 ? `${Math.round((total / p.pTarget) * 100)}%` : "0%";
       return {
-        "AREA"          : picArea || "-",
-        "SATOR"         : picName || "-",
-        "PROMOTOR"      : p.nama_promotor || "-",
-        "TARGET"        : p.pTarget,
-        "INPUT"         : input,
-        "CAPAIAN"       : capaian,
-        "CLOSING"       : p.closing,
-        "PENDING"       : p.pending,
-        "REJECT"        : p.reject,
-        "TOTAL"         : total,
-        "RATE APPROVAL" : rate,
+        "AREA"             : picArea || "-",
+        "SATOR"            : picName || "-",
+        "NAMA PROMOTOR"    : p.nama_promotor || "-",
+        "TARGET"           : p.pTarget,
+        "JUMLAH PENGAJUAN" : total,
+        "PENCAPAIAN"       : pencapaian,
+        "ACHIEVEMENT"      : achieve,
+        "CLOSING"          : p.closing,
+        "PENDING"          : p.pending,
+        "REJECT"           : p.reject,
+        "RATE APPROVAL"    : rate,
       };
     });
 
-    // Grand-total summary row
-    const totalInput    = rows.reduce((s, r) => s + (r["INPUT"]   as number), 0);
-    const totalCapaian  = rows.reduce((s, r) => s + (r["CAPAIAN"] as number), 0);
-    const totalClosing  = rows.reduce((s, r) => s + (r["CLOSING"] as number), 0);
-    const totalPending  = rows.reduce((s, r) => s + (r["PENDING"] as number), 0);
-    const totalReject   = rows.reduce((s, r) => s + (r["REJECT"]  as number), 0);
-    const totalTarget   = rows.reduce((s, r) => s + (r["TARGET"]  as number), 0);
-    const grandRate     = totalInput > 0 ? `${Math.round((totalCapaian / totalInput) * 100)}%` : "0%";
+    // Baris total
+    const totTarget     = rows.reduce((s, r) => s + (r["TARGET"]           as number), 0);
+    const totPengajuan  = rows.reduce((s, r) => s + (r["JUMLAH PENGAJUAN"] as number), 0);
+    const totPencapaian = rows.reduce((s, r) => s + (r["PENCAPAIAN"]       as number), 0);
+    const totClosing    = rows.reduce((s, r) => s + (r["CLOSING"]          as number), 0);
+    const totPending    = rows.reduce((s, r) => s + (r["PENDING"]          as number), 0);
+    const totReject     = rows.reduce((s, r) => s + (r["REJECT"]           as number), 0);
+    const grandAchieve  = totTarget > 0 ? `${Math.round((totPengajuan / totTarget) * 100)}%` : "0%";
+    const grandRate     = totPengajuan > 0 ? `${Math.round((totPencapaian / totPengajuan) * 100)}%` : "0%";
 
     rows.push({
-      "AREA"          : "TOTAL",
-      "SATOR"         : "",
-      "PROMOTOR"      : "",
-      "TARGET"        : totalTarget,
-      "INPUT"         : totalInput,
-      "CAPAIAN"       : totalCapaian,
-      "CLOSING"       : totalClosing,
-      "PENDING"       : totalPending,
-      "REJECT"        : totalReject,
-      "TOTAL"         : totalInput,
-      "RATE APPROVAL" : grandRate,
+      "AREA"             : "TOTAL",
+      "SATOR"            : "",
+      "NAMA PROMOTOR"    : "",
+      "TARGET"           : totTarget,
+      "JUMLAH PENGAJUAN" : totPengajuan,
+      "PENCAPAIAN"       : totPencapaian,
+      "ACHIEVEMENT"      : grandAchieve,
+      "CLOSING"          : totClosing,
+      "PENDING"          : totPending,
+      "REJECT"           : totReject,
+      "RATE APPROVAL"    : grandRate,
     });
 
     const ws = XLSX.utils.json_to_sheet(rows);
+    XLSX.utils.sheet_add_aoa(ws, [[`Periode: ${period}`]], { origin: -1 });
 
-    // Set column widths for readability
     ws["!cols"] = [
-      { wch: 14 }, // AREA
+      { wch: 12 }, // AREA
       { wch: 20 }, // SATOR
-      { wch: 24 }, // PROMOTOR
-      { wch: 8  }, // TARGET
-      { wch: 8  }, // INPUT
-      { wch: 10 }, // CAPAIAN
+      { wch: 26 }, // NAMA PROMOTOR
+      { wch: 10 }, // TARGET
+      { wch: 18 }, // JUMLAH PENGAJUAN
+      { wch: 14 }, // PENCAPAIAN
+      { wch: 14 }, // ACHIEVEMENT
       { wch: 10 }, // CLOSING
       { wch: 10 }, // PENDING
-      { wch: 8  }, // REJECT
-      { wch: 8  }, // TOTAL
+      { wch: 10 }, // REJECT
       { wch: 16 }, // RATE APPROVAL
     ];
 
     const wb = XLSX.utils.book_new();
-    const period = monthFilter || (startDate && endDate ? `${startDate}_${endDate}` : currentMonthStr);
-    XLSX.utils.book_append_sheet(wb, ws, "Sator_Report");
+    const fileperiod = monthFilter || (startDate && endDate ? `${startDate}_${endDate}` : currentMonthStr);
+    XLSX.utils.book_append_sheet(wb, ws, "Rekap_Promotor");
     const buffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-    saveAs(new Blob([buffer]), `Laporan_Sator_${picName}_${period}.xlsx`);
+    saveAs(new Blob([buffer]), `Rekap_Promotor_${picName}_${fileperiod}.xlsx`);
   };
 
   if (loading) return (
@@ -412,10 +425,22 @@ export default function SatorDashboard() {
             </select>
           </div>
           {!isMobile && (
-            <button onClick={exportExcel} className="bg-[#aec6ff] text-[#0c1321] px-8 py-4 rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] shadow-lg shadow-[#aec6ff]/10 hover:opacity-90 active:scale-95 transition-all flex items-center gap-3">
-              <span className="material-icons-outlined text-sm">download</span>
-              Export Report
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={exportDatabase}
+                className="bg-white/5 border border-white/10 text-[#aec6ff] px-6 py-4 rounded-2xl text-[11px] font-black uppercase tracking-[0.15em] hover:bg-white/10 active:scale-95 transition-all flex items-center gap-2"
+              >
+                <span className="material-icons-outlined text-sm">storage</span>
+                Export Database
+              </button>
+              <button
+                onClick={exportRekap}
+                className="bg-[#aec6ff] text-[#0c1321] px-6 py-4 rounded-2xl text-[11px] font-black uppercase tracking-[0.15em] shadow-lg shadow-[#aec6ff]/10 hover:opacity-90 active:scale-95 transition-all flex items-center gap-2"
+              >
+                <span className="material-icons-outlined text-sm">bar_chart</span>
+                Rekap Promotor
+              </button>
+            </div>
           )}
         </div>
 
